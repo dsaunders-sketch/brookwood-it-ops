@@ -1,0 +1,1000 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Brookwood Technology Operations Log</title>
+    <link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=DM+Sans:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <style>
+        :root {
+            --forest: #2d4a1e;
+            --brookwood: #4E6D41;
+            --sage: #9DC88D;
+            --sage-light: #e8f2e4;
+            --emerald: #123731;
+            --mango: #F1B24A;
+            --mango-light: #fef3d8;
+            --red: #c0392b;
+            --red-light: #fdecea;
+            --blue: #2471a3;
+            --blue-light: #e8f4fd;
+            --border: #dce8d8;
+            --bg: #ffffff;
+            --bg-subtle: #f7faf5;
+            --text: #1a2e19;
+            --text-muted: #5a7050;
+            --white: #ffffff;
+            --mono: 'DM Mono', monospace;
+            --sans: 'DM Sans', sans-serif;
+            --shadow: 0 1px 3px rgba(45,74,30,.08), 0 4px 16px rgba(45,74,30,.06);
+            --shadow-lg: 0 8px 32px rgba(45,74,30,.14);
+        }
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        body { font-family: var(--sans); background: var(--bg); color: var(--text); min-height: 100vh; font-size: 14px; line-height: 1.5; }
+
+        /* AUTH */
+        .auth-screen { display: flex; align-items: center; justify-content: center; min-height: 100vh; background: var(--emerald); background-image: radial-gradient(ellipse at 20% 50%, rgba(78,109,65,.4) 0%, transparent 60%), radial-gradient(ellipse at 80% 20%, rgba(157,200,141,.15) 0%, transparent 50%); }
+        .auth-card { background: var(--white); border-radius: 8px; padding: 48px; width: 100%; max-width: 400px; box-shadow: var(--shadow-lg); }
+        .auth-logo { width: 52px; height: 52px; background: var(--emerald); border-radius: 8px; display: flex; align-items: center; justify-content: center; padding: 8px; margin-bottom: 28px; }
+        .auth-logo img { width: 100%; height: 100%; object-fit: contain; }
+        .auth-card h1 { font-size: 20px; font-weight: 700; color: var(--emerald); margin-bottom: 4px; letter-spacing: -.02em; }
+        .auth-sub { color: var(--text-muted); font-size: 13px; margin-bottom: 28px; line-height: 1.5; }
+
+        /* HEADER */
+        .header { background: var(--emerald); color: white; padding: 0 24px; display: flex; align-items: center; justify-content: space-between; height: 52px; position: sticky; top: 0; z-index: 100; box-shadow: 0 2px 8px rgba(0,0,0,.2); }
+        .header-left { display: flex; align-items: center; gap: 10px; }
+        .header-logo { height: 26px; object-fit: contain; }
+        .header-divider { width: 1px; height: 18px; background: rgba(255,255,255,.25); }
+        .header-title { font-size: 13px; font-weight: 600; color: rgba(255,255,255,.9); letter-spacing: .01em; }
+        .header-nav { display: flex; gap: 2px; }
+        .nav-btn { background: none; border: none; color: rgba(255,255,255,.55); padding: 6px 12px; border-radius: 4px; cursor: pointer; font-size: 12px; font-weight: 500; font-family: var(--sans); transition: all .15s; }
+        .nav-btn:hover { background: rgba(255,255,255,.1); color: white; }
+        .nav-btn.active { background: rgba(255,255,255,.15); color: white; }
+        .nav-btn.signout { color: rgba(255,255,255,.35); }
+        .nav-btn.signout:hover { background: rgba(192,57,43,.25); color: #f1948a; }
+
+        /* LAYOUT */
+        .main { max-width: 1280px; margin: 0 auto; padding: 28px 24px; }
+        .view { display: none; }
+        .view.active { display: block; }
+
+        /* DASHBOARD */
+        .dash-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 16px; margin-bottom: 28px; }
+        .contract-card { background: var(--bg-subtle); border: 1px solid var(--border); border-radius: 8px; padding: 20px; border-left: 4px solid var(--brookwood); }
+        .contract-card.mango { border-left-color: var(--mango); }
+        .contract-name { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: .08em; color: var(--text-muted); margin-bottom: 12px; }
+        .contract-metric { display: flex; align-items: baseline; gap: 6px; margin-bottom: 6px; }
+        .metric-num { font-size: 32px; font-weight: 700; color: var(--emerald); font-family: var(--mono); letter-spacing: -.02em; line-height: 1; }
+        .metric-unit { font-size: 13px; color: var(--text-muted); font-weight: 500; }
+        .meter-bar { height: 6px; background: var(--border); border-radius: 3px; overflow: hidden; margin: 10px 0 6px; }
+        .meter-fill { height: 100%; border-radius: 3px; background: var(--brookwood); transition: width .4s ease; }
+        .meter-fill.warn { background: var(--mango); }
+        .meter-fill.danger { background: var(--red); }
+        .meter-label { font-size: 11px; color: var(--text-muted); font-family: var(--mono); }
+        .contract-detail { font-size: 12px; color: var(--text-muted); margin-top: 8px; padding-top: 8px; border-top: 1px solid var(--border); }
+
+        /* PAGE HEADER */
+        .page-header { display: flex; align-items: flex-end; justify-content: space-between; margin-bottom: 20px; }
+        .page-title { font-size: 22px; font-weight: 700; color: var(--emerald); letter-spacing: -.02em; }
+        .page-sub { font-size: 13px; color: var(--text-muted); margin-top: 2px; }
+
+        /* CARDS */
+        .card { background: var(--white); border: 1px solid var(--border); border-radius: 8px; padding: 24px; margin-bottom: 16px; box-shadow: var(--shadow); }
+        .card-title { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: .08em; color: var(--text-muted); margin-bottom: 18px; padding-bottom: 12px; border-bottom: 1px solid var(--border); }
+
+        /* TYPE SELECTOR */
+        .type-selector { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; margin-bottom: 24px; }
+        .type-opt { border: 2px solid var(--border); border-radius: 6px; padding: 14px 12px; cursor: pointer; transition: all .15s; text-align: center; user-select: none; }
+        .type-opt:hover { border-color: var(--sage); background: var(--sage-light); }
+        .type-opt.selected { border-color: var(--brookwood); background: var(--sage-light); }
+        .type-icon { font-size: 22px; margin-bottom: 6px; }
+        .type-label { font-size: 12px; font-weight: 700; color: var(--emerald); display: block; }
+        .type-desc { font-size: 11px; color: var(--text-muted); margin-top: 2px; display: block; }
+
+        /* FORMS */
+        .form-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+        .form-group { display: flex; flex-direction: column; gap: 6px; }
+        .form-group.span2 { grid-column: 1 / -1; }
+        label { font-size: 11px; font-weight: 600; color: var(--text-muted); text-transform: uppercase; letter-spacing: .06em; }
+        input[type="text"], input[type="number"], input[type="date"], input[type="email"], select, textarea { padding: 9px 12px; border: 1.5px solid var(--border); border-radius: 5px; font-size: 13px; font-family: var(--sans); color: var(--text); background: var(--white); transition: border-color .15s; }
+        input:focus, select:focus, textarea:focus { outline: none; border-color: var(--brookwood); }
+        textarea { resize: vertical; min-height: 80px; line-height: 1.5; }
+
+        /* BUTTONS */
+        .btn { display: inline-flex; align-items: center; gap: 6px; padding: 9px 16px; border-radius: 5px; border: none; font-size: 12px; font-weight: 600; font-family: var(--sans); cursor: pointer; transition: all .15s; letter-spacing: .01em; }
+        .btn-primary { background: var(--emerald); color: white; }
+        .btn-primary:hover { background: var(--forest); }
+        .btn-ghost { background: transparent; color: var(--text-muted); border: 1.5px solid var(--border); }
+        .btn-ghost:hover { border-color: var(--brookwood); color: var(--text); }
+        .btn-sm { padding: 5px 10px; font-size: 11px; }
+        .btn-mango { background: var(--mango); color: var(--emerald); }
+        .btn-mango:hover { opacity: .9; }
+
+        /* BADGES */
+        .badge { display: inline-flex; align-items: center; padding: 2px 8px; border-radius: 3px; font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: .05em; font-family: var(--mono); white-space: nowrap; }
+        .badge-vendor    { background: var(--blue-light); color: var(--blue); }
+        .badge-maintenance { background: var(--mango-light); color: #92640e; }
+        .badge-general   { background: var(--sage-light); color: var(--forest); }
+        .badge-securewon { background: #e8f0fd; color: #1a4a8a; }
+        .badge-threes    { background: var(--mango-light); color: #7a4a00; }
+        .badge-inscope   { background: var(--sage-light); color: var(--forest); }
+        .badge-outscope  { background: var(--red-light); color: var(--red); }
+        .badge-onsite    { background: var(--mango-light); color: #7a4a00; }
+
+        /* TABLE */
+        .table-wrap { overflow-x: auto; }
+        table { width: 100%; border-collapse: collapse; }
+        thead th { padding: 9px 12px; text-align: left; font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: .07em; color: var(--text-muted); border-bottom: 2px solid var(--border); white-space: nowrap; background: var(--bg-subtle); }
+        tbody td { padding: 11px 12px; font-size: 12px; border-bottom: 1px solid var(--border); vertical-align: middle; }
+        tbody tr:last-child td { border-bottom: none; }
+        tbody tr:hover td { background: var(--bg-subtle); }
+        .mono { font-family: var(--mono); font-size: 11px; }
+        .td-main { font-weight: 600; color: var(--emerald); }
+        .td-sub { font-size: 11px; color: var(--text-muted); margin-top: 2px; }
+
+        /* FILTERS */
+        .filter-bar { display: flex; gap: 8px; margin-bottom: 16px; flex-wrap: wrap; }
+        .filter-bar input, .filter-bar select { flex: 1; min-width: 140px; height: 36px; padding: 0 10px; }
+
+        /* UPCOMING */
+        .upcoming-list { display: flex; flex-direction: column; gap: 10px; }
+        .upcoming-item { display: flex; align-items: center; gap: 12px; padding: 12px 14px; background: var(--bg-subtle); border: 1px solid var(--border); border-radius: 6px; border-left: 3px solid var(--brookwood); }
+        .upcoming-item.urgent { border-left-color: var(--red); }
+        .upcoming-item.soon { border-left-color: var(--mango); }
+        .upcoming-date { font-family: var(--mono); font-size: 11px; font-weight: 700; color: var(--text-muted); white-space: nowrap; min-width: 70px; }
+        .upcoming-days { font-family: var(--mono); font-size: 11px; font-weight: 700; padding: 2px 7px; border-radius: 3px; background: var(--sage-light); color: var(--forest); white-space: nowrap; }
+        .upcoming-days.urgent { background: var(--red-light); color: var(--red); }
+        .upcoming-days.soon { background: var(--mango-light); color: #92640e; }
+
+        /* MODAL */
+        .overlay { display: none; position: fixed; inset: 0; background: rgba(18,55,49,.55); z-index: 500; align-items: flex-start; justify-content: center; padding: 40px 16px; overflow-y: auto; backdrop-filter: blur(3px); }
+        .overlay.open { display: flex; }
+        .modal { background: var(--white); border-radius: 8px; padding: 28px; width: 100%; max-width: 620px; box-shadow: var(--shadow-lg); }
+        .modal-head { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 20px; padding-bottom: 16px; border-bottom: 1px solid var(--border); }
+        .modal-title { font-size: 16px; font-weight: 700; color: var(--emerald); letter-spacing: -.01em; }
+        .modal-meta { font-size: 12px; color: var(--text-muted); margin-top: 3px; }
+        .modal-close { background: none; border: none; font-size: 20px; cursor: pointer; color: var(--text-muted); line-height: 1; padding: 2px; }
+        .modal-foot { display: flex; gap: 8px; justify-content: flex-end; margin-top: 20px; padding-top: 16px; border-top: 1px solid var(--border); }
+
+        /* ALERTS */
+        .alert { padding: 10px 14px; border-radius: 5px; font-size: 12px; margin-bottom: 14px; font-weight: 500; line-height: 1.4; }
+        .alert-ok  { background: var(--sage-light); color: var(--forest); }
+        .alert-err { background: var(--red-light); color: var(--red); }
+        .alert-inf { background: var(--blue-light); color: var(--blue); }
+
+        /* MISC */
+        .empty { text-align: center; padding: 40px 24px; color: var(--text-muted); font-size: 13px; }
+        .empty-icon { font-size: 28px; margin-bottom: 8px; }
+        .hidden { display: none !important; }
+        .section-label { font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: .08em; color: var(--text-muted); margin-bottom: 8px; }
+        .info-row { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 16px; }
+        .info-item label { display: block; font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: .06em; color: var(--text-muted); margin-bottom: 3px; }
+        .info-val { font-size: 13px; font-weight: 500; }
+        .info-item.span2 { grid-column: 1/-1; }
+        hr.rule { border: none; border-top: 1px dashed var(--border); margin: 16px 0; }
+        .stat-row { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 12px; margin-bottom: 20px; }
+        .stat-box { background: var(--bg-subtle); border: 1px solid var(--border); border-left: 3px solid var(--brookwood); border-radius: 6px; padding: 14px 16px; }
+        .stat-box.mango { border-left-color: var(--mango); }
+        .stat-box.red { border-left-color: var(--red); }
+        .stat-num { font-size: 26px; font-weight: 800; color: var(--emerald); font-family: var(--mono); letter-spacing: -.02em; line-height: 1; }
+        .stat-lbl { font-size: 11px; color: var(--text-muted); margin-top: 4px; font-weight: 500; }
+        .tab-bar { display: flex; border-bottom: 2px solid var(--border); margin-bottom: 20px; }
+        .tab-btn { padding: 9px 16px; border: none; background: none; cursor: pointer; font-size: 12px; font-weight: 600; font-family: var(--sans); color: var(--text-muted); border-bottom: 3px solid transparent; margin-bottom: -2px; transition: all .15s; }
+        .tab-btn.active { color: var(--brookwood); border-bottom-color: var(--brookwood); }
+        .tab-btn:hover { color: var(--text); }
+        .tab-panel { display: none; }
+        .tab-panel.active { display: block; }
+        .two-col { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+        @media (max-width: 640px) { .form-grid { grid-template-columns: 1fr; } .type-selector { grid-template-columns: 1fr; } .info-row { grid-template-columns: 1fr; } .two-col { grid-template-columns: 1fr; } }
+    </style>
+</head>
+<body>
+
+<!-- AUTH -->
+<div id="auth-screen" class="auth-screen">
+    <div class="auth-card">
+        <div class="auth-logo">
+            <img src="./webapp_logo.svg" alt="Brookwood" />
+        </div>
+        <h1>Technology Operations Log</h1>
+        <p class="auth-sub">Brookwood School — IT Department.<br>Sign in with your Brookwood email to continue.</p>
+        <div id="auth-alert"></div>
+        <input type="email" id="auth-email" placeholder="you@brookwood.edu" style="width:100%; margin-bottom:10px;" />
+        <button class="btn btn-primary" style="width:100%; justify-content:center; padding:11px;" onclick="signIn()">Send Magic Link</button>
+    </div>
+</div>
+
+<!-- APP -->
+<div id="app" class="hidden">
+    <div class="header">
+        <div class="header-left">
+            <img src="./webapp_logo.svg" class="header-logo" alt="Brookwood" />
+            <div class="header-divider"></div>
+            <span class="header-title">Technology Operations Log</span>
+        </div>
+        <div class="header-nav">
+            <button class="nav-btn active" data-view="dashboard">Dashboard</button>
+            <button class="nav-btn" data-view="log">Log Entry</button>
+            <button class="nav-btn" data-view="history">History</button>
+            <button class="nav-btn" data-view="assets">Assets</button>
+            <button class="nav-btn" data-view="contracts">Contracts</button>
+            <button class="nav-btn signout" onclick="signOut()">Sign Out</button>
+        </div>
+    </div>
+
+    <div class="main">
+
+        <!-- DASHBOARD -->
+        <div id="view-dashboard" class="view active">
+            <div class="page-header">
+                <div>
+                    <div class="page-title">Dashboard</div>
+                    <div class="page-sub">Contract status, upcoming maintenance, recent activity</div>
+                </div>
+                <button class="btn btn-ghost btn-sm" onclick="loadDashboard()">↻ Refresh</button>
+            </div>
+            <div id="dash-contracts" class="dash-grid">
+                <div class="empty"><div class="empty-icon">⏳</div>Loading...</div>
+            </div>
+            <div class="two-col">
+                <div class="card">
+                    <div class="card-title">Upcoming Maintenance</div>
+                    <div id="dash-upcoming"><div class="empty"><div class="empty-icon">⏳</div>Loading...</div></div>
+                </div>
+                <div class="card">
+                    <div class="card-title">Recent Entries</div>
+                    <div id="dash-recent"><div class="empty"><div class="empty-icon">⏳</div>Loading...</div></div>
+                </div>
+            </div>
+        </div>
+
+        <!-- LOG ENTRY -->
+        <div id="view-log" class="view">
+            <div class="page-header">
+                <div>
+                    <div class="page-title">Log Entry</div>
+                    <div class="page-sub">Record work, vendor activity, or maintenance</div>
+                </div>
+            </div>
+            <div class="card">
+                <div class="card-title">Entry Type</div>
+                <div class="type-selector">
+                    <div class="type-opt selected" onclick="selectType('vendor', this)">
+                        <div class="type-icon">🤝</div>
+                        <span class="type-label">Vendor / Contract</span>
+                        <span class="type-desc">SecureWon, Three's Company, or other vendor work</span>
+                    </div>
+                    <div class="type-opt" onclick="selectType('maintenance', this)">
+                        <div class="type-icon">🔧</div>
+                        <span class="type-label">Maintenance</span>
+                        <span class="type-desc">Equipment service, replacements, physical assets</span>
+                    </div>
+                    <div class="type-opt" onclick="selectType('general', this)">
+                        <div class="type-icon">📋</div>
+                        <span class="type-label">General Work</span>
+                        <span class="type-desc">Tickets, config changes, projects, internal tasks</span>
+                    </div>
+                </div>
+                <div id="log-alert"></div>
+                <div class="form-grid">
+                    <div class="form-group">
+                        <label>Date *</label>
+                        <input type="date" id="l-date" />
+                    </div>
+                    <div class="form-group">
+                        <label>Logged By *</label>
+                        <select id="l-who">
+                            <option value="">Select...</option>
+                            <option value="David Saunders">David Saunders</option>
+                            <option value="Evan">Evan</option>
+                        </select>
+                    </div>
+                    <div class="form-group span2">
+                        <label>Title / Summary *</label>
+                        <input type="text" id="l-title" placeholder="Brief description of what happened" />
+                    </div>
+
+                    <!-- VENDOR FIELDS -->
+                    <div id="vf-contract" class="form-group">
+                        <label>Contract *</label>
+                        <select id="l-contract">
+                            <option value="">Select contract...</option>
+                            <option value="SecureWon">SecureWon</option>
+                            <option value="Three's Company">Three's Company</option>
+                            <option value="Other">Other Vendor</option>
+                        </select>
+                    </div>
+                    <div id="vf-hours" class="form-group">
+                        <label>Hours Used</label>
+                        <input type="number" id="l-hours" placeholder="e.g. 1.5" step="0.25" min="0" />
+                    </div>
+                    <div id="vf-scope" class="form-group">
+                        <label>Scope</label>
+                        <select id="l-scope">
+                            <option value="In Scope">In Scope (covered by contract)</option>
+                            <option value="Out of Scope">Out of Scope (billable extra)</option>
+                            <option value="On-Site Day">On-Site Day</option>
+                            <option value="Unknown">Unknown</option>
+                        </select>
+                    </div>
+                    <div id="vf-vendor-contact" class="form-group">
+                        <label>Vendor Contact</label>
+                        <input type="text" id="l-vendor-contact" placeholder="e.g. Alex McCormick" />
+                    </div>
+
+                    <!-- MAINTENANCE FIELDS -->
+                    <div id="mf-asset" class="form-group hidden">
+                        <label>Existing Asset</label>
+                        <select id="l-asset">
+                            <option value="">Select existing asset...</option>
+                        </select>
+                    </div>
+                    <div id="mf-new-asset" class="form-group hidden">
+                        <label>Or New Asset Name</label>
+                        <input type="text" id="l-new-asset" placeholder="e.g. Dining Hall Projector Bulb" />
+                    </div>
+                    <div id="mf-location" class="form-group hidden">
+                        <label>Location</label>
+                        <input type="text" id="l-location" placeholder="e.g. Dining Hall, Room 204" />
+                    </div>
+                    <div id="mf-next" class="form-group hidden">
+                        <label>Next Service / Replace By</label>
+                        <input type="date" id="l-next-service" />
+                    </div>
+
+                    <!-- GENERAL FIELDS -->
+                    <div id="gf-category" class="form-group hidden">
+                        <label>Category</label>
+                        <select id="l-category">
+                            <option value="Infrastructure">Infrastructure</option>
+                            <option value="Network">Network</option>
+                            <option value="Software">Software</option>
+                            <option value="Hardware">Hardware</option>
+                            <option value="Security">Security</option>
+                            <option value="User Support">User Support</option>
+                            <option value="Project">Project</option>
+                            <option value="Other">Other</option>
+                        </select>
+                    </div>
+
+                    <!-- SHARED BOTTOM -->
+                    <div class="form-group span2">
+                        <label>What Was Accomplished *</label>
+                        <textarea id="l-accomplished" placeholder="Describe what was done, decisions made, outcomes..."></textarea>
+                    </div>
+                    <div class="form-group span2">
+                        <label>What Changed in Infrastructure</label>
+                        <textarea id="l-changed" placeholder="Config changes, new hardware, system modifications, credentials updated — things worth knowing if something breaks later..."></textarea>
+                    </div>
+                    <div class="form-group span2">
+                        <label>Notes / Follow-up</label>
+                        <textarea id="l-notes" placeholder="Open questions, follow-up needed, context for next time..." style="min-height:60px;"></textarea>
+                    </div>
+                </div>
+                <div style="display:flex; gap:10px; margin-top:20px;">
+                    <button class="btn btn-primary" onclick="submitEntry()">Save Entry</button>
+                    <button class="btn btn-ghost" onclick="clearLogForm()">Clear</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- HISTORY -->
+        <div id="view-history" class="view">
+            <div class="page-header">
+                <div>
+                    <div class="page-title">History</div>
+                    <div class="page-sub">All logged entries</div>
+                </div>
+                <button class="btn btn-ghost btn-sm" onclick="loadHistory()">↻ Refresh</button>
+            </div>
+            <div class="card" style="padding:16px;">
+                <div class="filter-bar">
+                    <input type="text" id="h-search" placeholder="Search title or description..." oninput="renderHistory()" />
+                    <select id="h-type" onchange="renderHistory()">
+                        <option value="">All Types</option>
+                        <option value="vendor">Vendor</option>
+                        <option value="maintenance">Maintenance</option>
+                        <option value="general">General</option>
+                    </select>
+                    <select id="h-contract" onchange="renderHistory()">
+                        <option value="">All Contracts</option>
+                        <option value="SecureWon">SecureWon</option>
+                        <option value="Three's Company">Three's Company</option>
+                    </select>
+                </div>
+            </div>
+            <div class="card" style="padding:0; overflow:hidden;">
+                <div id="history-content"><div class="empty"><div class="empty-icon">📋</div>Loading...</div></div>
+            </div>
+        </div>
+
+        <!-- ASSETS -->
+        <div id="view-assets" class="view">
+            <div class="page-header">
+                <div>
+                    <div class="page-title">Assets</div>
+                    <div class="page-sub">Equipment and maintenance schedule</div>
+                </div>
+                <button class="btn btn-mango btn-sm" onclick="openNewAsset()">+ New Asset</button>
+            </div>
+            <div class="card" style="padding:0; overflow:hidden;">
+                <div id="assets-content"><div class="empty"><div class="empty-icon">⏳</div>Loading...</div></div>
+            </div>
+        </div>
+
+        <!-- CONTRACTS -->
+        <div id="view-contracts" class="view">
+            <div class="page-header">
+                <div>
+                    <div class="page-title">Contracts</div>
+                    <div class="page-sub">Vendor usage, hours, and on-site days</div>
+                </div>
+            </div>
+            <div class="card">
+                <div class="tab-bar">
+                    <button class="tab-btn active" onclick="switchContractTab('securewon', this)">SecureWon</button>
+                    <button class="tab-btn" onclick="switchContractTab('threes', this)">Three's Company</button>
+                </div>
+                <div id="ctab-securewon" class="tab-panel active">
+                    <div id="sw-content"><div class="empty"><div class="empty-icon">⏳</div>Loading...</div></div>
+                </div>
+                <div id="ctab-threes" class="tab-panel">
+                    <div id="tc-content"><div class="empty"><div class="empty-icon">⏳</div>Loading...</div></div>
+                </div>
+            </div>
+        </div>
+
+    </div>
+</div>
+
+<!-- ASSET MODAL -->
+<div id="asset-overlay" class="overlay" onclick="if(event.target===this)closeAssetModal()">
+    <div class="modal">
+        <div class="modal-head">
+            <div>
+                <div class="modal-title" id="am-title">New Asset</div>
+                <div class="modal-meta">Track equipment for maintenance scheduling</div>
+            </div>
+            <button class="modal-close" onclick="closeAssetModal()">×</button>
+        </div>
+        <div id="am-alert"></div>
+        <div class="form-grid">
+            <div class="form-group span2">
+                <label>Asset Name *</label>
+                <input type="text" id="am-name" placeholder="e.g. Dining Hall Projector, Apple TV Room 204" />
+            </div>
+            <div class="form-group">
+                <label>Category</label>
+                <select id="am-category">
+                    <option value="Projector">Projector</option>
+                    <option value="Display">Display / TV</option>
+                    <option value="Apple TV">Apple TV</option>
+                    <option value="Network">Network Equipment</option>
+                    <option value="Server">Server</option>
+                    <option value="Chromebook">Chromebook</option>
+                    <option value="Printer">Printer</option>
+                    <option value="Other">Other</option>
+                </select>
+            </div>
+            <div class="form-group">
+                <label>Location</label>
+                <input type="text" id="am-location" placeholder="e.g. Dining Hall" />
+            </div>
+            <div class="form-group">
+                <label>Purchase / Install Date</label>
+                <input type="date" id="am-installed" />
+            </div>
+            <div class="form-group">
+                <label>Expected Lifespan</label>
+                <select id="am-lifespan">
+                    <option value="">Unknown</option>
+                    <option value="1">~1 year</option>
+                    <option value="2">~2 years</option>
+                    <option value="3">~3 years</option>
+                    <option value="5">~5 years</option>
+                    <option value="7">~7 years</option>
+                    <option value="10">~10 years</option>
+                </select>
+            </div>
+            <div class="form-group">
+                <label>Next Service / Replace By</label>
+                <input type="date" id="am-next" />
+            </div>
+            <div class="form-group span2">
+                <label>Notes</label>
+                <textarea id="am-notes" placeholder="Serial number, model, warranty info, quirks..." style="min-height:60px;"></textarea>
+            </div>
+        </div>
+        <div class="modal-foot">
+            <button class="btn btn-ghost" onclick="closeAssetModal()">Cancel</button>
+            <button class="btn btn-primary" onclick="saveAsset()">Save Asset</button>
+        </div>
+    </div>
+</div>
+
+<!-- ENTRY DETAIL MODAL -->
+<div id="entry-overlay" class="overlay" onclick="if(event.target===this)closeEntryModal()">
+    <div class="modal" style="max-width:680px;">
+        <div class="modal-head">
+            <div>
+                <div class="modal-title" id="em-title"></div>
+                <div class="modal-meta" id="em-meta"></div>
+            </div>
+            <button class="modal-close" onclick="closeEntryModal()">×</button>
+        </div>
+        <div id="em-body"></div>
+        <div class="modal-foot">
+            <button class="btn btn-ghost" onclick="closeEntryModal()">Close</button>
+        </div>
+    </div>
+</div>
+
+<script>
+const SUPA_URL = 'https://jbrdnvtfuwdenmjdpguj.supabase.co';
+const SUPA_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImpicmRudnRmdXdkZW5tamRwZ3VqIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzI4NTg3NTUsImV4cCI6MjA4ODQzNDc1NX0.JEiOyLOvL18UTZ4vNebaJ9UMnvBNgLWQeEB8WlwOlks';
+const { createClient } = supabase;
+const sb = createClient(SUPA_URL, SUPA_KEY);
+
+let currentType = 'vendor';
+let historyCache = [];
+let editingAssetId = null;
+
+// ── AUTH ──────────────────────────────────────────────────────────────────────
+
+async function init() {
+    const { data: { session } } = await sb.auth.getSession();
+    if (session) showApp();
+    sb.auth.onAuthStateChange((_, session) => {
+        if (session) showApp(); else showAuth();
+    });
+}
+
+async function signIn() {
+    const email = document.getElementById('auth-email').value.trim();
+    const el = document.getElementById('auth-alert');
+    if (!email) { el.innerHTML = alertHtml('err', 'Please enter your email.'); return; }
+    if (!email.endsWith('@brookwood.edu')) { el.innerHTML = alertHtml('err', 'Only @brookwood.edu addresses are permitted.'); return; }
+    const { error } = await sb.auth.signInWithOtp({
+        email,
+        options: { emailRedirectTo: 'https://dsaunders-sketch.github.io/brookwood-it-ops/' }
+    });
+    if (error) el.innerHTML = alertHtml('err', error.message);
+    else el.innerHTML = alertHtml('ok', 'Magic link sent — check your email.');
+}
+
+async function signOut() { await sb.auth.signOut(); }
+
+function showApp() {
+    document.getElementById('auth-screen').classList.add('hidden');
+    document.getElementById('app').classList.remove('hidden');
+    setToday();
+    loadAssetOptions();
+    loadDashboard();
+}
+
+function showAuth() {
+    document.getElementById('auth-screen').classList.remove('hidden');
+    document.getElementById('app').classList.add('hidden');
+}
+
+// ── NAV ───────────────────────────────────────────────────────────────────────
+
+function showView(name) {
+    document.querySelectorAll('.view').forEach(v => v.classList.remove('active'));
+    document.querySelectorAll('.nav-btn[data-view]').forEach(b => b.classList.remove('active'));
+    document.getElementById('view-' + name).classList.add('active');
+    document.querySelector(`.nav-btn[data-view="${name}"]`).classList.add('active');
+    if (name === 'dashboard') loadDashboard();
+    if (name === 'history') loadHistory();
+    if (name === 'assets') loadAssets();
+    if (name === 'contracts') { loadSecureWon(); loadThreesCompany(); }
+}
+
+document.querySelectorAll('.nav-btn[data-view]').forEach(btn => {
+    btn.addEventListener('click', () => showView(btn.dataset.view));
+});
+
+// ── ENTRY TYPE ────────────────────────────────────────────────────────────────
+
+function selectType(type, el) {
+    document.querySelectorAll('.type-opt').forEach(o => o.classList.remove('selected'));
+    el.classList.add('selected');
+    currentType = type;
+    const vendorFields = ['vf-contract','vf-hours','vf-scope','vf-vendor-contact'];
+    const maintenanceFields = ['mf-asset','mf-new-asset','mf-location','mf-next'];
+    const generalFields = ['gf-category'];
+    [...vendorFields, ...maintenanceFields, ...generalFields].forEach(id => document.getElementById(id).classList.add('hidden'));
+    if (type === 'vendor') vendorFields.forEach(id => document.getElementById(id).classList.remove('hidden'));
+    if (type === 'maintenance') maintenanceFields.forEach(id => document.getElementById(id).classList.remove('hidden'));
+    if (type === 'general') generalFields.forEach(id => document.getElementById(id).classList.remove('hidden'));
+}
+
+// ── LOG FORM ──────────────────────────────────────────────────────────────────
+
+function setToday() {
+    document.getElementById('l-date').value = new Date().toISOString().split('T')[0];
+}
+
+function clearLogForm() {
+    ['l-title','l-hours','l-vendor-contact','l-new-asset','l-location','l-accomplished','l-changed','l-notes'].forEach(id => document.getElementById(id).value = '');
+    ['l-contract','l-scope','l-asset','l-category','l-who'].forEach(id => document.getElementById(id).value = '');
+    document.getElementById('l-next-service').value = '';
+    setToday();
+    document.getElementById('log-alert').innerHTML = '';
+}
+
+async function submitEntry() {
+    const el = document.getElementById('log-alert');
+    const date = document.getElementById('l-date').value;
+    const who = document.getElementById('l-who').value;
+    const title = document.getElementById('l-title').value.trim();
+    const accomplished = document.getElementById('l-accomplished').value.trim();
+    if (!date || !who || !title || !accomplished) {
+        el.innerHTML = alertHtml('err', 'Date, logged by, title, and what was accomplished are required.');
+        return;
+    }
+    const rec = {
+        entry_date: date,
+        logged_by: who,
+        entry_type: currentType,
+        title,
+        accomplished,
+        infrastructure_changes: document.getElementById('l-changed').value.trim() || null,
+        notes: document.getElementById('l-notes').value.trim() || null,
+    };
+    if (currentType === 'vendor') {
+        rec.contract_name = document.getElementById('l-contract').value || null;
+        rec.hours_used = document.getElementById('l-hours').value ? parseFloat(document.getElementById('l-hours').value) : null;
+        rec.scope = document.getElementById('l-scope').value || null;
+        rec.vendor_contact = document.getElementById('l-vendor-contact').value.trim() || null;
+    }
+    if (currentType === 'maintenance') {
+        const existingAsset = document.getElementById('l-asset').value;
+        const newAsset = document.getElementById('l-new-asset').value.trim();
+        rec.asset_name = newAsset || existingAsset || null;
+        rec.location = document.getElementById('l-location').value.trim() || null;
+        rec.next_service_date = document.getElementById('l-next-service').value || null;
+        if (existingAsset && document.getElementById('l-next-service').value) {
+            await sb.from('it_assets').update({
+                next_service_date: document.getElementById('l-next-service').value,
+                last_serviced: date
+            }).eq('name', existingAsset);
+        }
+    }
+    if (currentType === 'general') {
+        rec.category = document.getElementById('l-category').value || null;
+    }
+    const { error } = await sb.from('it_log').insert(rec);
+    if (error) { el.innerHTML = alertHtml('err', error.message); return; }
+    el.innerHTML = alertHtml('ok', 'Entry saved successfully.');
+    clearLogForm();
+    setTimeout(() => el.innerHTML = '', 5000);
+}
+
+// ── DASHBOARD ─────────────────────────────────────────────────────────────────
+
+async function loadDashboard() {
+    loadContractCards();
+    loadUpcoming();
+    loadRecent();
+}
+
+async function loadContractCards() {
+    const el = document.getElementById('dash-contracts');
+    const now = new Date();
+    const monthStart = new Date(now.getFullYear(), now.getMonth(), 1).toISOString().split('T')[0];
+    const monthEnd = new Date(now.getFullYear(), now.getMonth() + 1, 0).toISOString().split('T')[0];
+
+    const { data: swData } = await sb.from('it_log').select('hours_used').eq('contract_name','SecureWon').eq('entry_type','vendor').gte('entry_date',monthStart).lte('entry_date',monthEnd);
+    const swHours = (swData||[]).reduce((s,r) => s+(parseFloat(r.hours_used)||0), 0);
+    const swRemaining = Math.max(0, 7-swHours);
+    const swPct = Math.min(100, (swHours/7)*100);
+
+    const { data: tcData } = await sb.from('it_log').select('entry_date').eq('contract_name',"Three's Company").eq('scope','On-Site Day').gte('entry_date','2025-07-01').lte('entry_date','2026-06-30');
+    const tcDays = (tcData||[]).length;
+    const tcRemaining = Math.max(0, 10-tcDays);
+    const tcPct = Math.min(100, (tcDays/10)*100);
+    const monthName = now.toLocaleDateString('en-US',{month:'long'});
+
+    el.innerHTML = `
+        <div class="contract-card">
+            <div class="contract-name">SecureWon — ${monthName}</div>
+            <div class="contract-metric"><span class="metric-num">${swRemaining.toFixed(1)}</span><span class="metric-unit">hrs remaining</span></div>
+            <div class="meter-bar"><div class="meter-fill ${swPct>85?'danger':swPct>60?'warn':''}" style="width:${swPct}%"></div></div>
+            <div class="meter-label">${swHours.toFixed(1)} of 7 hrs used this month</div>
+            <div class="contract-detail">Contact: Alex McCormick · 7 hrs/month allotment · Unused hrs → on-site day</div>
+        </div>
+        <div class="contract-card mango">
+            <div class="contract-name">Three's Company — FY26</div>
+            <div class="contract-metric"><span class="metric-num">${tcRemaining}</span><span class="metric-unit">on-site days remaining</span></div>
+            <div class="meter-bar"><div class="meter-fill ${tcPct>85?'danger':tcPct>60?'warn':''}" style="width:${tcPct}%; background:var(--mango);"></div></div>
+            <div class="meter-label">${tcDays} of 10 days used · Contract ends June 30, 2026</div>
+            <div class="contract-detail">Contact: Aleksandr Duba · $200/hr out-of-scope · Days don't roll over</div>
+        </div>`;
+}
+
+async function loadUpcoming() {
+    const el = document.getElementById('dash-upcoming');
+    const { data, error } = await sb.from('it_assets').select('*').not('next_service_date','is',null).order('next_service_date',{ascending:true}).limit(8);
+    if (error || !data?.length) { el.innerHTML = `<div class="empty"><div class="empty-icon">✓</div>No upcoming maintenance scheduled.</div>`; return; }
+    const today = new Date();
+    el.innerHTML = `<div class="upcoming-list">${data.map(a => {
+        const days = Math.ceil((new Date(a.next_service_date) - today) / 86400000);
+        const cls = days < 0 ? 'urgent' : days < 30 ? 'soon' : '';
+        const dayLabel = days < 0 ? `${Math.abs(days)}d overdue` : days === 0 ? 'Today' : `in ${days}d`;
+        return `<div class="upcoming-item ${cls}">
+            <span class="upcoming-date">${fdate(a.next_service_date)}</span>
+            <div style="flex:1"><div style="font-weight:600;font-size:12px;color:var(--emerald);">${esc(a.name)}</div><div style="font-size:11px;color:var(--text-muted);">${esc(a.location||'—')}</div></div>
+            <span class="upcoming-days ${cls}">${dayLabel}</span>
+        </div>`;
+    }).join('')}</div>`;
+}
+
+async function loadRecent() {
+    const el = document.getElementById('dash-recent');
+    const { data } = await sb.from('it_log').select('id,entry_date,entry_type,title,logged_by,contract_name').order('entry_date',{ascending:false}).limit(8);
+    if (!data?.length) { el.innerHTML = `<div class="empty"><div class="empty-icon">📋</div>No entries yet.</div>`; return; }
+    el.innerHTML = `<div style="display:flex;flex-direction:column;gap:8px;">${data.map(e=>`
+        <div style="display:flex;align-items:center;gap:10px;padding:8px 0;border-bottom:1px solid var(--border);">
+            <span class="mono" style="color:var(--text-muted);white-space:nowrap;font-size:10px;">${fdate(e.entry_date)}</span>
+            <div style="flex:1;min-width:0;"><div style="font-weight:600;font-size:12px;color:var(--emerald);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${esc(e.title)}</div><div style="font-size:11px;color:var(--text-muted);">${e.logged_by}</div></div>
+            ${typeBadge(e.entry_type, e.contract_name)}
+        </div>`).join('')}</div>`;
+}
+
+// ── HISTORY ───────────────────────────────────────────────────────────────────
+
+async function loadHistory() {
+    const { data, error } = await sb.from('it_log').select('*').order('entry_date',{ascending:false});
+    if (error) { document.getElementById('history-content').innerHTML = errHtml(error.message); return; }
+    historyCache = data || [];
+    renderHistory();
+}
+
+function renderHistory() {
+    const q = document.getElementById('h-search').value.toLowerCase();
+    const type = document.getElementById('h-type').value;
+    const contract = document.getElementById('h-contract').value;
+    let d = historyCache;
+    if (q) d = d.filter(e => e.title?.toLowerCase().includes(q) || e.accomplished?.toLowerCase().includes(q) || e.infrastructure_changes?.toLowerCase().includes(q));
+    if (type) d = d.filter(e => e.entry_type === type);
+    if (contract) d = d.filter(e => e.contract_name === contract);
+    const el = document.getElementById('history-content');
+    if (!d.length) { el.innerHTML = `<div class="empty"><div class="empty-icon">🔍</div>No entries match your filters.</div>`; return; }
+    el.innerHTML = `<div class="table-wrap"><table>
+        <thead><tr><th>Date</th><th>Type</th><th>Title</th><th>By</th><th>Contract / Asset</th><th>Hours</th><th></th></tr></thead>
+        <tbody>${d.map(e=>`<tr>
+            <td class="mono">${fdate(e.entry_date)}</td>
+            <td>${typeBadge(e.entry_type,e.contract_name)}</td>
+            <td><div class="td-main">${esc(e.title)}</div><div class="td-sub">${esc((e.accomplished||'').substring(0,70))}${(e.accomplished||'').length>70?'…':''}</div></td>
+            <td style="white-space:nowrap;">${esc(e.logged_by||'—')}</td>
+            <td>${esc(e.contract_name||e.asset_name||e.category||'—')}</td>
+            <td class="mono">${e.hours_used?e.hours_used+'h':'—'}</td>
+            <td><button class="btn btn-ghost btn-sm" onclick="openEntry('${e.id}')">View</button></td>
+        </tr>`).join('')}</tbody>
+    </table></div>`;
+}
+
+// ── ASSETS ────────────────────────────────────────────────────────────────────
+
+async function loadAssets() {
+    const el = document.getElementById('assets-content');
+    const { data, error } = await sb.from('it_assets').select('*').order('name');
+    if (error) { el.innerHTML = errHtml(error.message); return; }
+    if (!data?.length) { el.innerHTML = `<div class="empty"><div class="empty-icon">📦</div>No assets yet. Add your first asset to start tracking maintenance.</div>`; return; }
+    const today = new Date();
+    el.innerHTML = `<div class="table-wrap"><table>
+        <thead><tr><th>Asset</th><th>Category</th><th>Location</th><th>Last Serviced</th><th>Next Service</th><th>Status</th><th></th></tr></thead>
+        <tbody>${data.map(a => {
+            const days = a.next_service_date ? Math.ceil((new Date(a.next_service_date)-today)/86400000) : null;
+            const statusHtml = days===null ? '<span style="color:var(--text-muted);font-size:11px;">No schedule</span>'
+                : days<0 ? `<span class="badge" style="background:var(--red-light);color:var(--red);">Overdue ${Math.abs(days)}d</span>`
+                : days<30 ? `<span class="badge" style="background:var(--mango-light);color:#92640e;">Due in ${days}d</span>`
+                : `<span class="badge badge-general">OK</span>`;
+            return `<tr>
+                <td><div class="td-main">${esc(a.name)}</div>${a.notes?`<div class="td-sub">${esc(a.notes.substring(0,50))}</div>`:''}</td>
+                <td>${esc(a.category||'—')}</td>
+                <td>${esc(a.location||'—')}</td>
+                <td class="mono">${a.last_serviced?fdate(a.last_serviced):'—'}</td>
+                <td class="mono">${a.next_service_date?fdate(a.next_service_date):'—'}</td>
+                <td>${statusHtml}</td>
+                <td><button class="btn btn-ghost btn-sm" onclick="openEditAsset('${a.id}')">Edit</button></td>
+            </tr>`;
+        }).join('')}</tbody>
+    </table></div>`;
+}
+
+async function loadAssetOptions() {
+    const { data } = await sb.from('it_assets').select('id,name').order('name');
+    const sel = document.getElementById('l-asset');
+    sel.innerHTML = '<option value="">Select existing asset...</option>';
+    (data||[]).forEach(a => {
+        const o = document.createElement('option');
+        o.value = a.name; o.textContent = a.name;
+        sel.appendChild(o);
+    });
+}
+
+function openNewAsset() {
+    editingAssetId = null;
+    document.getElementById('am-title').textContent = 'New Asset';
+    ['am-name','am-location','am-notes'].forEach(id => document.getElementById(id).value = '');
+    document.getElementById('am-category').value = 'Projector';
+    document.getElementById('am-lifespan').value = '';
+    document.getElementById('am-installed').value = '';
+    document.getElementById('am-next').value = '';
+    document.getElementById('am-alert').innerHTML = '';
+    document.getElementById('asset-overlay').classList.add('open');
+}
+
+async function openEditAsset(id) {
+    const { data } = await sb.from('it_assets').select('*').eq('id',id).single();
+    if (!data) return;
+    editingAssetId = id;
+    document.getElementById('am-title').textContent = 'Edit Asset';
+    document.getElementById('am-name').value = data.name||'';
+    document.getElementById('am-category').value = data.category||'';
+    document.getElementById('am-location').value = data.location||'';
+    document.getElementById('am-installed').value = data.install_date||'';
+    document.getElementById('am-lifespan').value = data.expected_lifespan_years||'';
+    document.getElementById('am-next').value = data.next_service_date||'';
+    document.getElementById('am-notes').value = data.notes||'';
+    document.getElementById('am-alert').innerHTML = '';
+    document.getElementById('asset-overlay').classList.add('open');
+}
+
+async function saveAsset() {
+    const el = document.getElementById('am-alert');
+    const name = document.getElementById('am-name').value.trim();
+    if (!name) { el.innerHTML = alertHtml('err','Asset name is required.'); return; }
+    const rec = {
+        name,
+        category: document.getElementById('am-category').value||null,
+        location: document.getElementById('am-location').value.trim()||null,
+        install_date: document.getElementById('am-installed').value||null,
+        expected_lifespan_years: document.getElementById('am-lifespan').value ? parseInt(document.getElementById('am-lifespan').value) : null,
+        next_service_date: document.getElementById('am-next').value||null,
+        notes: document.getElementById('am-notes').value.trim()||null,
+    };
+    const { error } = editingAssetId
+        ? await sb.from('it_assets').update(rec).eq('id',editingAssetId)
+        : await sb.from('it_assets').insert(rec);
+    if (error) { el.innerHTML = alertHtml('err',error.message); return; }
+    closeAssetModal();
+    loadAssets();
+    loadAssetOptions();
+    loadDashboard();
+}
+
+function closeAssetModal() { document.getElementById('asset-overlay').classList.remove('open'); editingAssetId = null; }
+
+// ── CONTRACTS ─────────────────────────────────────────────────────────────────
+
+function switchContractTab(name, btn) {
+    document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+    document.querySelectorAll('.tab-panel').forEach(p => p.classList.remove('active'));
+    btn.classList.add('active');
+    document.getElementById('ctab-'+name).classList.add('active');
+    if (name==='securewon') loadSecureWon();
+    if (name==='threes') loadThreesCompany();
+}
+
+async function loadSecureWon() {
+    const el = document.getElementById('sw-content');
+    const now = new Date();
+    const monthStart = new Date(now.getFullYear(),now.getMonth(),1).toISOString().split('T')[0];
+    const monthEnd = new Date(now.getFullYear(),now.getMonth()+1,0).toISOString().split('T')[0];
+    const { data: all } = await sb.from('it_log').select('entry_date,hours_used,scope,title,logged_by,id').eq('contract_name','SecureWon').order('entry_date',{ascending:false});
+    const thisMonth = (all||[]).filter(e => e.entry_date>=monthStart && e.entry_date<=monthEnd);
+    const monthHours = thisMonth.reduce((s,e) => s+(parseFloat(e.hours_used)||0), 0);
+    const totalHours = (all||[]).reduce((s,e) => s+(parseFloat(e.hours_used)||0), 0);
+    el.innerHTML = `
+        <div class="stat-row">
+            <div class="stat-box"><div class="stat-num">${monthHours.toFixed(1)}</div><div class="stat-lbl">Hours used this month</div></div>
+            <div class="stat-box mango"><div class="stat-num">${(7-monthHours).toFixed(1)}</div><div class="stat-lbl">Hours remaining this month</div></div>
+            <div class="stat-box"><div class="stat-num">${totalHours.toFixed(1)}</div><div class="stat-lbl">Total hours logged</div></div>
+            <div class="stat-box"><div class="stat-num">${(all||[]).length}</div><div class="stat-lbl">Total engagements</div></div>
+        </div>
+        <p style="font-size:12px;color:var(--text-muted);margin-bottom:16px;">June 1, 2025 – May 31, 2026 · $3,470/month · 7 hrs/month allotment · Unused hours convert to one on-site day · Contact: Alex McCormick (amccormick@securewon.com)</p>
+        ${renderContractTable(all||[])}`;
+}
+
+async function loadThreesCompany() {
+    const el = document.getElementById('tc-content');
+    const { data: all } = await sb.from('it_log').select('entry_date,hours_used,scope,title,logged_by,id').eq('contract_name',"Three's Company").order('entry_date',{ascending:false});
+    const onsiteDays = (all||[]).filter(e => e.scope==='On-Site Day').length;
+    const oosHours = (all||[]).filter(e => e.scope==='Out of Scope').reduce((s,e) => s+(parseFloat(e.hours_used)||0), 0);
+    el.innerHTML = `
+        <div class="stat-row">
+            <div class="stat-box mango"><div class="stat-num">${onsiteDays}</div><div class="stat-lbl">On-site days used (FY26)</div></div>
+            <div class="stat-box"><div class="stat-num">${10-onsiteDays}</div><div class="stat-lbl">On-site days remaining</div></div>
+            <div class="stat-box red"><div class="stat-num">${oosHours.toFixed(1)}</div><div class="stat-lbl">Out-of-scope hours</div></div>
+            <div class="stat-box"><div class="stat-num">$${(oosHours*200).toLocaleString()}</div><div class="stat-lbl">Est. out-of-scope cost</div></div>
+        </div>
+        <p style="font-size:12px;color:var(--text-muted);margin-bottom:16px;">July 1, 2025 – June 30, 2026 · $4,000/month · 10 on-site days/year (don't roll over) · $200/hr out-of-scope · $2,250/on-site day extra · Contact: Aleksandr Duba</p>
+        ${renderContractTable(all||[])}`;
+}
+
+function renderContractTable(rows) {
+    if (!rows.length) return `<div class="empty"><div class="empty-icon">📋</div>No entries logged yet for this contract.</div>`;
+    return `<div class="table-wrap"><table>
+        <thead><tr><th>Date</th><th>Title</th><th>By</th><th>Scope</th><th>Hours</th><th></th></tr></thead>
+        <tbody>${rows.map(e=>`<tr>
+            <td class="mono">${fdate(e.entry_date)}</td>
+            <td class="td-main">${esc(e.title)}</td>
+            <td>${esc(e.logged_by||'—')}</td>
+            <td>${scopeBadge(e.scope)}</td>
+            <td class="mono">${e.hours_used?e.hours_used+'h':'—'}</td>
+            <td><button class="btn btn-ghost btn-sm" onclick="openEntry('${e.id}')">View</button></td>
+        </tr>`).join('')}</tbody>
+    </table></div>`;
+}
+
+// ── ENTRY DETAIL ──────────────────────────────────────────────────────────────
+
+async function openEntry(id) {
+    const { data } = await sb.from('it_log').select('*').eq('id',id).single();
+    if (!data) return;
+    document.getElementById('em-title').textContent = data.title;
+    document.getElementById('em-meta').textContent = `${fdate(data.entry_date)} · ${data.logged_by} · ${data.entry_type}`;
+    let body = `<div class="info-row">`;
+    if (data.contract_name) body += `<div class="info-item"><label>Contract</label><div class="info-val">${esc(data.contract_name)}</div></div>`;
+    if (data.scope) body += `<div class="info-item"><label>Scope</label><div class="info-val">${scopeBadge(data.scope)}</div></div>`;
+    if (data.hours_used) body += `<div class="info-item"><label>Hours</label><div class="info-val mono">${data.hours_used}h</div></div>`;
+    if (data.vendor_contact) body += `<div class="info-item"><label>Vendor Contact</label><div class="info-val">${esc(data.vendor_contact)}</div></div>`;
+    if (data.asset_name) body += `<div class="info-item"><label>Asset</label><div class="info-val">${esc(data.asset_name)}</div></div>`;
+    if (data.location) body += `<div class="info-item"><label>Location</label><div class="info-val">${esc(data.location)}</div></div>`;
+    if (data.next_service_date) body += `<div class="info-item"><label>Next Service</label><div class="info-val mono">${fdate(data.next_service_date)}</div></div>`;
+    if (data.category) body += `<div class="info-item"><label>Category</label><div class="info-val">${esc(data.category)}</div></div>`;
+    body += `</div><hr class="rule"><div class="section-label">What Was Accomplished</div><p style="font-size:13px;line-height:1.6;margin-bottom:14px;">${esc(data.accomplished)}</p>`;
+    if (data.infrastructure_changes) body += `<hr class="rule"><div class="section-label">Infrastructure Changes</div><p style="font-size:13px;line-height:1.6;margin-bottom:14px;">${esc(data.infrastructure_changes)}</p>`;
+    if (data.notes) body += `<hr class="rule"><div class="section-label">Notes / Follow-up</div><p style="font-size:13px;line-height:1.6;">${esc(data.notes)}</p>`;
+    document.getElementById('em-body').innerHTML = body;
+    document.getElementById('entry-overlay').classList.add('open');
+}
+
+function closeEntryModal() { document.getElementById('entry-overlay').classList.remove('open'); }
+
+// ── HELPERS ───────────────────────────────────────────────────────────────────
+
+function typeBadge(type, contract) {
+    if (type==='vendor') {
+        if (contract==='SecureWon') return `<span class="badge badge-securewon">SecureWon</span>`;
+        if (contract==="Three's Company") return `<span class="badge badge-threes">Three's Co.</span>`;
+        return `<span class="badge badge-vendor">Vendor</span>`;
+    }
+    if (type==='maintenance') return `<span class="badge badge-maintenance">Maintenance</span>`;
+    return `<span class="badge badge-general">General</span>`;
+}
+
+function scopeBadge(scope) {
+    if (!scope) return '—';
+    if (scope==='In Scope') return `<span class="badge badge-inscope">In Scope</span>`;
+    if (scope==='Out of Scope') return `<span class="badge badge-outscope">Out of Scope</span>`;
+    if (scope==='On-Site Day') return `<span class="badge badge-onsite">On-Site</span>`;
+    return `<span class="badge">${scope}</span>`;
+}
+
+function fdate(ts) {
+    if (!ts) return '—';
+    const d = new Date(ts+(ts.length===10?'T12:00:00':''));
+    return d.toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'});
+}
+
+function esc(str) {
+    if (!str) return '—';
+    return String(str).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+}
+
+function alertHtml(type, msg) {
+    const cls = {ok:'alert-ok',err:'alert-err',inf:'alert-inf'};
+    return `<div class="alert ${cls[type]}">${msg}</div>`;
+}
+
+function errHtml(msg) { return `<div class="alert alert-err" style="margin:16px;">${msg}</div>`; }
+
+init();
+</script>
+</body>
+</html>

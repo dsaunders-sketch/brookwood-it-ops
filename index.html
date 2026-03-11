@@ -262,7 +262,35 @@
 
         .zone-body.collapsed { display: none; }
 
-        @media (max-width: 640px) { .form-grid { grid-template-columns: 1fr; } .type-selector { grid-template-columns: 1fr; } .info-row { grid-template-columns: 1fr; } .two-col { grid-template-columns: 1fr; } }
+        /* ── HAMBURGER ── */
+        .hamburger { display: none; flex-direction: column; gap: 5px; background: none; border: none; cursor: pointer; padding: 6px; }
+        .hamburger span { display: block; width: 22px; height: 2px; background: rgba(255,255,255,.8); border-radius: 2px; transition: all .2s; }
+
+        .mobile-nav { position: fixed; top: 52px; left: 0; right: 0; background: var(--emerald); z-index: 99; box-shadow: 0 4px 16px rgba(0,0,0,.3); border-top: 1px solid rgba(255,255,255,.1); }
+        .mobile-nav-btn { display: block; width: 100%; text-align: left; padding: 14px 20px; background: none; border: none; border-bottom: 1px solid rgba(255,255,255,.08); color: rgba(255,255,255,.75); font-size: 14px; font-weight: 500; font-family: var(--sans); cursor: pointer; }
+        .mobile-nav-btn:hover, .mobile-nav-btn.active { background: rgba(255,255,255,.1); color: white; }
+        .mobile-nav-btn.signout { color: rgba(255,255,255,.4); }
+
+        @media (max-width: 700px) {
+            .hamburger { display: flex; }
+            #desktop-nav { display: none; }
+            .header-title { font-size: 11px; }
+            .main { padding: 16px 14px; }
+            .form-grid { grid-template-columns: 1fr; }
+            .type-selector { grid-template-columns: 1fr; }
+            .info-row { grid-template-columns: 1fr; }
+            .two-col { grid-template-columns: 1fr; }
+            .page-title { font-size: 18px; }
+            .dash-grid { grid-template-columns: 1fr; }
+            .stat-row { grid-template-columns: 1fr 1fr; }
+            .filter-bar { flex-direction: column; }
+            .filter-bar input, .filter-bar select { min-width: unset; width: 100%; }
+            .card { padding: 16px; }
+            .modal { padding: 18px; }
+            .table-wrap { font-size: 11px; }
+            thead th, tbody td { padding: 8px 8px; }
+            .metric-num { font-size: 26px; }
+        }
     </style>
 </head>
 <body>
@@ -289,7 +317,7 @@
             <div class="header-divider"></div>
             <span class="header-title">Technology Operations Log</span>
         </div>
-        <div class="header-nav">
+        <div class="header-nav" id="desktop-nav">
             <button class="nav-btn active" data-view="dashboard">Dashboard</button>
             <button class="nav-btn" data-view="log">Log Entry</button>
             <button class="nav-btn" data-view="history">History</button>
@@ -297,6 +325,19 @@
             <button class="nav-btn" data-view="contracts">Contracts</button>
             <button class="nav-btn signout" onclick="signOut()">Sign Out</button>
         </div>
+        <button class="hamburger" id="hamburger-btn" onclick="toggleMobileMenu()" aria-label="Menu">
+            <span></span><span></span><span></span>
+        </button>
+    </div>
+
+    <!-- Mobile nav drawer -->
+    <div id="mobile-nav" class="mobile-nav hidden">
+        <button class="mobile-nav-btn active" data-view="dashboard" onclick="mobileNav('dashboard')">📊 Dashboard</button>
+        <button class="mobile-nav-btn" data-view="log" onclick="mobileNav('log')">✏️ Log Entry</button>
+        <button class="mobile-nav-btn" data-view="history" onclick="mobileNav('history')">📋 History</button>
+        <button class="mobile-nav-btn" data-view="assets" onclick="mobileNav('assets')">📦 Assets</button>
+        <button class="mobile-nav-btn" data-view="contracts" onclick="mobileNav('contracts')">🤝 Contracts</button>
+        <button class="mobile-nav-btn signout" onclick="signOut()">→ Sign Out</button>
     </div>
 
     <div class="main">
@@ -831,6 +872,16 @@ function showApp() {
 function showAuth() {
     document.getElementById('auth-screen').classList.remove('hidden');
     document.getElementById('app').classList.add('hidden');
+}
+
+function toggleMobileMenu() {
+    document.getElementById('mobile-nav').classList.toggle('hidden');
+}
+
+function mobileNav(name) {
+    document.getElementById('mobile-nav').classList.add('hidden');
+    showView(name);
+    document.querySelectorAll('.mobile-nav-btn[data-view]').forEach(b => b.classList.toggle('active', b.dataset.view === name));
 }
 
 // ── NAV ───────────────────────────────────────────────────────────────────────

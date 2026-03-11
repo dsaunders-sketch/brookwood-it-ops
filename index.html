@@ -422,8 +422,8 @@
                     <!-- GENERAL FIELDS -->
                     <div id="gf-category" class="form-group hidden">
                         <label>Category</label>
-                        <select id="l-category">
-                            <option value="Infrastructure">Infrastructure</option>
+                        <select id="l-category" onchange="onCategoryChange()">
+                            <option value="Infrastructure Change">Infrastructure Change</option>
                             <option value="Network">Network</option>
                             <option value="Software">Software</option>
                             <option value="Hardware">Hardware</option>
@@ -718,6 +718,16 @@ function selectType(type, el) {
 }
 
 // ── LOG FORM ──────────────────────────────────────────────────────────────────
+
+function onCategoryChange() {
+    const cat = document.getElementById('l-category').value;
+    const changedField = document.getElementById('l-changed');
+    if (cat === 'Infrastructure Change') {
+        changedField.placeholder = 'What changed? e.g. "Replaced core switch in server room — firmware updated. Full config updated in network infrastructure doc (Drive)."';
+    } else {
+        changedField.placeholder = 'Config changes, new hardware, system modifications — things worth knowing if something breaks later...';
+    }
+}
 
 function setToday() {
     document.getElementById('l-date').value = new Date().toISOString().split('T')[0];

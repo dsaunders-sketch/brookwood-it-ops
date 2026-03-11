@@ -667,9 +667,98 @@
             </div>
             <button class="modal-close" onclick="closeEntryModal()">×</button>
         </div>
+        <!-- VIEW mode -->
         <div id="em-body"></div>
-        <div class="modal-foot">
+        <div id="em-view-foot" class="modal-foot">
             <button class="btn btn-ghost" onclick="closeEntryModal()">Close</button>
+            <button class="btn btn-primary" onclick="switchToEditMode()">Edit Entry</button>
+        </div>
+        <!-- EDIT mode -->
+        <div id="em-edit-body" class="hidden">
+            <div id="em-edit-alert"></div>
+            <div class="form-grid">
+                <div class="form-group">
+                    <label>Date</label>
+                    <input type="date" id="ee-date" />
+                </div>
+                <div class="form-group">
+                    <label>Logged By</label>
+                    <select id="ee-who">
+                        <option value="David Saunders">David Saunders</option>
+                        <option value="Evan Randazzo">Evan Randazzo</option>
+                    </select>
+                </div>
+                <div class="form-group span2">
+                    <label>Title</label>
+                    <input type="text" id="ee-title" />
+                </div>
+                <div id="ee-contract-group" class="form-group hidden">
+                    <label>Contract</label>
+                    <select id="ee-contract">
+                        <option value="SecureWon">SecureWon</option>
+                        <option value="Three's Company">Three's Company</option>
+                        <option value="Other">Other Vendor</option>
+                    </select>
+                </div>
+                <div id="ee-scope-group" class="form-group hidden">
+                    <label>Scope</label>
+                    <select id="ee-scope">
+                        <option value="In Scope">In Scope</option>
+                        <option value="Out of Scope">Out of Scope</option>
+                        <option value="On-Site Day">On-Site Day</option>
+                        <option value="Unknown">Unknown</option>
+                    </select>
+                </div>
+                <div id="ee-hours-group" class="form-group hidden">
+                    <label>Hours</label>
+                    <input type="number" id="ee-hours" step="0.25" min="0" />
+                </div>
+                <div id="ee-contact-group" class="form-group hidden">
+                    <label>Vendor Contact</label>
+                    <input type="text" id="ee-contact" />
+                </div>
+                <div id="ee-asset-group" class="form-group hidden">
+                    <label>Asset</label>
+                    <input type="text" id="ee-asset" />
+                </div>
+                <div id="ee-location-group" class="form-group hidden">
+                    <label>Location</label>
+                    <input type="text" id="ee-location" />
+                </div>
+                <div id="ee-next-group" class="form-group hidden">
+                    <label>Next Service Date</label>
+                    <input type="date" id="ee-next" />
+                </div>
+                <div id="ee-category-group" class="form-group hidden">
+                    <label>Category</label>
+                    <select id="ee-category">
+                        <option value="Infrastructure Change">Infrastructure Change</option>
+                        <option value="Network">Network</option>
+                        <option value="Software">Software</option>
+                        <option value="Hardware">Hardware</option>
+                        <option value="Security">Security</option>
+                        <option value="User Support">User Support</option>
+                        <option value="Project">Project</option>
+                        <option value="Other">Other</option>
+                    </select>
+                </div>
+                <div class="form-group span2">
+                    <label>What Was Accomplished</label>
+                    <textarea id="ee-accomplished" style="min-height:100px;"></textarea>
+                </div>
+                <div class="form-group span2">
+                    <label>Infrastructure Changes</label>
+                    <textarea id="ee-changed" style="min-height:60px;"></textarea>
+                </div>
+                <div class="form-group span2">
+                    <label>Notes</label>
+                    <textarea id="ee-notes" style="min-height:60px;"></textarea>
+                </div>
+            </div>
+        </div>
+        <div id="em-edit-foot" class="modal-foot hidden">
+            <button class="btn btn-ghost" onclick="switchToViewMode()">Cancel</button>
+            <button class="btn btn-primary" onclick="saveEntryEdit()">Save Changes</button>
         </div>
     </div>
 </div>
@@ -1276,9 +1365,18 @@ function renderContractTable(rows) {
 
 // ── ENTRY DETAIL ──────────────────────────────────────────────────────────────
 
+let currentEntryData = null;
+
 async function openEntry(id) {
     const { data } = await sb.from('it_log').select('*').eq('id',id).single();
     if (!data) return;
+    currentEntryData = data;
+    switchToViewMode();
+    renderEntryView(data);
+    document.getElementById('entry-overlay').classList.add('open');
+}
+
+function renderEntryView(data) {
     document.getElementById('em-title').textContent = data.title;
     document.getElementById('em-meta').textContent = `${fdate(data.entry_date)} · ${data.logged_by} · ${data.entry_type}`;
     let body = `<div class="info-row">`;
@@ -1294,10 +1392,110 @@ async function openEntry(id) {
     if (data.infrastructure_changes) body += `<hr class="rule"><div class="section-label">Infrastructure Changes</div><p style="font-size:13px;line-height:1.6;margin-bottom:14px;">${esc(data.infrastructure_changes)}</p>`;
     if (data.notes) body += `<hr class="rule"><div class="section-label">Notes / Follow-up</div><p style="font-size:13px;line-height:1.6;">${esc(data.notes)}</p>`;
     document.getElementById('em-body').innerHTML = body;
-    document.getElementById('entry-overlay').classList.add('open');
 }
 
-function closeEntryModal() { document.getElementById('entry-overlay').classList.remove('open'); }
+function switchToEditMode() {
+    const d = currentEntryData;
+    // populate edit fields
+    document.getElementById('ee-date').value = d.entry_date || '';
+    document.getElementById('ee-who').value = d.logged_by || '';
+    document.getElementById('ee-title').value = d.title || '';
+    document.getElementById('ee-accomplished').value = d.accomplished || '';
+    document.getElementById('ee-changed').value = d.infrastructure_changes || '';
+    document.getElementById('ee-notes').value = d.notes || '';
+
+    // show type-specific fields
+    const isVendor = d.entry_type === 'vendor';
+    const isMaint = d.entry_type === 'maintenance';
+    const isGeneral = d.entry_type === 'general';
+
+    document.getElementById('ee-contract-group').classList.toggle('hidden', !isVendor);
+    document.getElementById('ee-scope-group').classList.toggle('hidden', !isVendor);
+    document.getElementById('ee-hours-group').classList.toggle('hidden', !isVendor);
+    document.getElementById('ee-contact-group').classList.toggle('hidden', !isVendor);
+    document.getElementById('ee-asset-group').classList.toggle('hidden', !isMaint);
+    document.getElementById('ee-location-group').classList.toggle('hidden', !isMaint);
+    document.getElementById('ee-next-group').classList.toggle('hidden', !isMaint);
+    document.getElementById('ee-category-group').classList.toggle('hidden', !isGeneral);
+
+    if (isVendor) {
+        document.getElementById('ee-contract').value = d.contract_name || '';
+        document.getElementById('ee-scope').value = d.scope || '';
+        document.getElementById('ee-hours').value = d.hours_used || '';
+        document.getElementById('ee-contact').value = d.vendor_contact || '';
+    }
+    if (isMaint) {
+        document.getElementById('ee-asset').value = d.asset_name || '';
+        document.getElementById('ee-location').value = d.location || '';
+        document.getElementById('ee-next').value = d.next_service_date || '';
+    }
+    if (isGeneral) {
+        document.getElementById('ee-category').value = d.category || '';
+    }
+
+    document.getElementById('em-body').classList.add('hidden');
+    document.getElementById('em-view-foot').classList.add('hidden');
+    document.getElementById('em-edit-body').classList.remove('hidden');
+    document.getElementById('em-edit-foot').classList.remove('hidden');
+    document.getElementById('em-edit-alert').innerHTML = '';
+    document.getElementById('em-title').textContent = 'Edit Entry';
+    document.getElementById('em-meta').textContent = currentEntryData.entry_type;
+}
+
+function switchToViewMode() {
+    document.getElementById('em-body').classList.remove('hidden');
+    document.getElementById('em-view-foot').classList.remove('hidden');
+    document.getElementById('em-edit-body').classList.add('hidden');
+    document.getElementById('em-edit-foot').classList.add('hidden');
+}
+
+async function saveEntryEdit() {
+    const el = document.getElementById('em-edit-alert');
+    const d = currentEntryData;
+    const rec = {
+        entry_date: document.getElementById('ee-date').value,
+        logged_by: document.getElementById('ee-who').value,
+        title: document.getElementById('ee-title').value.trim(),
+        accomplished: document.getElementById('ee-accomplished').value.trim(),
+        infrastructure_changes: document.getElementById('ee-changed').value.trim() || null,
+        notes: document.getElementById('ee-notes').value.trim() || null,
+    };
+    if (!rec.title || !rec.accomplished) { el.innerHTML = alertHtml('err','Title and accomplished are required.'); return; }
+
+    if (d.entry_type === 'vendor') {
+        rec.contract_name = document.getElementById('ee-contract').value || null;
+        rec.scope = document.getElementById('ee-scope').value || null;
+        rec.hours_used = document.getElementById('ee-hours').value ? parseFloat(document.getElementById('ee-hours').value) : null;
+        rec.vendor_contact = document.getElementById('ee-contact').value.trim() || null;
+    }
+    if (d.entry_type === 'maintenance') {
+        rec.asset_name = document.getElementById('ee-asset').value.trim() || null;
+        rec.location = document.getElementById('ee-location').value.trim() || null;
+        rec.next_service_date = document.getElementById('ee-next').value || null;
+    }
+    if (d.entry_type === 'general') {
+        rec.category = document.getElementById('ee-category').value || null;
+    }
+
+    const { error } = await sb.from('it_log').update(rec).eq('id', d.id);
+    if (error) { el.innerHTML = alertHtml('err', error.message); return; }
+
+    // update local cache and re-render view
+    currentEntryData = { ...d, ...rec };
+    switchToViewMode();
+    renderEntryView(currentEntryData);
+    document.getElementById('em-title').textContent = currentEntryData.title;
+
+    // refresh background data
+    if (historyCache.length) loadHistory();
+    loadDashboard();
+}
+
+function closeEntryModal() {
+    document.getElementById('entry-overlay').classList.remove('open');
+    switchToViewMode();
+    currentEntryData = null;
+}
 
 // ── HELPERS ───────────────────────────────────────────────────────────────────
 

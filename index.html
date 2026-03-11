@@ -387,16 +387,19 @@
                         <input type="text" id="l-title" placeholder="Brief description of what happened" />
                     </div>
 
+
                     <!-- VENDOR FIELDS -->
                     <div id="vf-contract" class="form-group">
                         <label>Contract *</label>
-                        <select id="l-contract">
+                        <select id="l-contract" onchange="onContractChange()">
                             <option value="">Select contract...</option>
                             <option value="SecureWon">SecureWon</option>
                             <option value="Three's Company">Three's Company</option>
                             <option value="Other">Other Vendor</option>
                         </select>
                     </div>
+
+                    <!-- SecureWon fields -->
                     <div id="vf-hours" class="form-group">
                         <label>Hours Used</label>
                         <input type="number" id="l-hours" placeholder="e.g. 1.5" step="0.25" min="0" />
@@ -410,6 +413,24 @@
                             <option value="Unknown">Unknown</option>
                         </select>
                     </div>
+
+                    <!-- Three's Company fields -->
+                    <div id="vf-tc-type" class="form-group hidden">
+                        <label>Visit Type *</label>
+                        <select id="l-tc-type" onchange="onTCTypeChange()">
+                            <option value="On-Site Day">On-Site Day (counts against 10/year)</option>
+                            <option value="Out of Scope">Out of Scope — extra billable work</option>
+                            <option value="In Scope">In Scope — remote / standard support</option>
+                        </select>
+                    </div>
+                    <div id="vf-tc-oos-hours" class="form-group hidden">
+                        <label>Out-of-Scope Hours</label>
+                        <input type="number" id="l-tc-hours" placeholder="e.g. 2.5" step="0.25" min="0" />
+                    </div>
+                    <div id="vf-tc-note" class="hidden" style="grid-column:1/-1;">
+                        <div class="alert alert-inf" id="vf-tc-note-text"></div>
+                    </div>
+
                     <div id="vf-vendor-contact" class="form-group">
                         <label>Vendor Contact</label>
                         <input type="text" id="l-vendor-contact" placeholder="e.g. Alex McCormick" />
@@ -745,7 +766,7 @@ function selectType(type, el) {
     document.querySelectorAll('.type-opt').forEach(o => o.classList.remove('selected'));
     el.classList.add('selected');
     currentType = type;
-    const vendorFields = ['vf-contract','vf-hours','vf-scope','vf-vendor-contact'];
+    const vendorFields = ['vf-contract','vf-hours','vf-scope','vf-vendor-contact','vf-tc-type','vf-tc-oos-hours','vf-tc-note'];
     const maintenanceFields = ['mf-asset','mf-new-asset','mf-location','mf-next'];
     const generalFields = ['gf-category'];
     [...vendorFields, ...maintenanceFields, ...generalFields].forEach(id => document.getElementById(id).classList.add('hidden'));
@@ -756,7 +777,45 @@ function selectType(type, el) {
 
 // ── LOG FORM ──────────────────────────────────────────────────────────────────
 
-function onCategoryChange() {
+function onContractChange() {
+    const contract = document.getElementById('l-contract').value;
+
+    // SecureWon fields
+    const swFields = ['vf-hours','vf-scope'];
+    // Three's Company fields
+    const tcFields = ['vf-tc-type','vf-tc-note'];
+
+    swFields.forEach(id => document.getElementById(id).classList.toggle('hidden', contract !== 'SecureWon'));
+    tcFields.forEach(id => document.getElementById(id).classList.toggle('hidden', contract !== "Three's Company"));
+    document.getElementById('vf-tc-oos-hours').classList.add('hidden');
+
+    // Set default contact
+    const contactField = document.getElementById('l-vendor-contact');
+    if (contract === 'SecureWon' && !contactField.value) contactField.value = 'Alex McCormick';
+    if (contract === "Three's Company" && !contactField.value) contactField.value = 'Aleksandr Duba';
+    if (contract === 'Other' || contract === '') contactField.value = '';
+
+    if (contract === "Three's Company") onTCTypeChange();
+}
+
+function onTCTypeChange() {
+    const type = document.getElementById('l-tc-type').value;
+    const noteEl = document.getElementById('vf-tc-note-text');
+    const oosHours = document.getElementById('vf-tc-oos-hours');
+
+    if (type === 'On-Site Day') {
+        noteEl.textContent = 'This will count as 1 of your 10 included on-site days for FY26. Days do not roll over past June 30.';
+        oosHours.classList.add('hidden');
+    } else if (type === 'Out of Scope') {
+        noteEl.textContent = 'Out-of-scope work is billed at $200/hr above the monthly flat fee. Log hours below.';
+        oosHours.classList.remove('hidden');
+    } else {
+        noteEl.textContent = 'Standard in-scope support — covered by the $4,000/month flat fee.';
+        oosHours.classList.add('hidden');
+    }
+}
+
+
     const cat = document.getElementById('l-category').value;
     const changedField = document.getElementById('l-changed');
     if (cat === 'Infrastructure Change') {
@@ -771,8 +830,8 @@ function setToday() {
 }
 
 function clearLogForm() {
-    ['l-title','l-hours','l-vendor-contact','l-new-asset','l-location','l-accomplished','l-changed','l-notes'].forEach(id => document.getElementById(id).value = '');
-    ['l-contract','l-scope','l-asset','l-category','l-who'].forEach(id => document.getElementById(id).value = '');
+    ['l-title','l-hours','l-tc-hours','l-vendor-contact','l-new-asset','l-location','l-accomplished','l-changed','l-notes'].forEach(id => document.getElementById(id).value = '');
+    ['l-contract','l-scope','l-tc-type','l-asset','l-category','l-who'].forEach(id => document.getElementById(id).value = '');
     document.getElementById('l-next-service').value = '';
     setToday();
     document.getElementById('log-alert').innerHTML = '';
@@ -799,9 +858,16 @@ async function submitEntry() {
     };
     if (currentType === 'vendor') {
         rec.contract_name = document.getElementById('l-contract').value || null;
-        rec.hours_used = document.getElementById('l-hours').value ? parseFloat(document.getElementById('l-hours').value) : null;
-        rec.scope = document.getElementById('l-scope').value || null;
         rec.vendor_contact = document.getElementById('l-vendor-contact').value.trim() || null;
+        if (rec.contract_name === "Three's Company") {
+            const tcType = document.getElementById('l-tc-type').value;
+            rec.scope = tcType;
+            rec.hours_used = tcType === 'Out of Scope' && document.getElementById('l-tc-hours').value
+                ? parseFloat(document.getElementById('l-tc-hours').value) : null;
+        } else {
+            rec.hours_used = document.getElementById('l-hours').value ? parseFloat(document.getElementById('l-hours').value) : null;
+            rec.scope = document.getElementById('l-scope').value || null;
+        }
     }
     if (currentType === 'maintenance') {
         const existingAsset = document.getElementById('l-asset').value;

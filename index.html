@@ -757,6 +757,7 @@
             </div>
         </div>
         <div id="em-edit-foot" class="modal-foot hidden">
+            <button class="btn" style="background:var(--red-light);color:var(--red);margin-right:auto;" onclick="deleteEntry()">Delete Entry</button>
             <button class="btn btn-ghost" onclick="switchToViewMode()">Cancel</button>
             <button class="btn btn-primary" onclick="saveEntryEdit()">Save Changes</button>
         </div>
@@ -1487,6 +1488,15 @@ async function saveEntryEdit() {
     document.getElementById('em-title').textContent = currentEntryData.title;
 
     // refresh background data
+    if (historyCache.length) loadHistory();
+    loadDashboard();
+}
+
+async function deleteEntry() {
+    if (!confirm(`Delete "${currentEntryData.title}"? This cannot be undone.`)) return;
+    const { error } = await sb.from('it_log').delete().eq('id', currentEntryData.id);
+    if (error) { document.getElementById('em-edit-alert').innerHTML = alertHtml('err', error.message); return; }
+    closeEntryModal();
     if (historyCache.length) loadHistory();
     loadDashboard();
 }

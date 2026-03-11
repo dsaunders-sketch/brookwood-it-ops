@@ -186,6 +186,82 @@
         .tab-panel { display: none; }
         .tab-panel.active { display: block; }
         .two-col { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+        /* ── ASSET TOGGLE ── */
+        .asset-toggle {
+            padding: 6px 12px;
+            border: none;
+            background: none;
+            cursor: pointer;
+            font-size: 11px;
+            font-weight: 600;
+            font-family: var(--sans);
+            color: var(--text-muted);
+            transition: all .15s;
+        }
+        .asset-toggle.active { background: var(--emerald); color: white; }
+        .asset-toggle:not(.active):hover { background: var(--bg-subtle); color: var(--text); }
+
+        /* ── ZONE GROUP ── */
+        .zone-group { margin-bottom: 8px; }
+
+        .zone-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 10px 16px;
+            background: var(--bg-subtle);
+            border: 1px solid var(--border);
+            border-radius: 6px;
+            cursor: pointer;
+            user-select: none;
+            transition: background .15s;
+        }
+
+        .zone-header:hover { background: var(--sage-light); }
+
+        .zone-header-left { display: flex; align-items: center; gap: 10px; }
+
+        .zone-name {
+            font-size: 12px;
+            font-weight: 700;
+            color: var(--emerald);
+            letter-spacing: .01em;
+        }
+
+        .zone-count {
+            font-size: 10px;
+            font-family: var(--mono);
+            color: var(--text-muted);
+            background: var(--border);
+            padding: 1px 7px;
+            border-radius: 10px;
+        }
+
+        .zone-alert-dot {
+            width: 7px;
+            height: 7px;
+            border-radius: 50%;
+            background: var(--red);
+            flex-shrink: 0;
+        }
+
+        .zone-alert-dot.warn { background: var(--mango); }
+
+        .zone-chevron {
+            font-size: 10px;
+            color: var(--text-muted);
+            transition: transform .2s;
+        }
+
+        .zone-body {
+            border: 1px solid var(--border);
+            border-top: none;
+            border-radius: 0 0 6px 6px;
+            overflow: hidden;
+        }
+
+        .zone-body.collapsed { display: none; }
+
         @media (max-width: 640px) { .form-grid { grid-template-columns: 1fr; } .type-selector { grid-template-columns: 1fr; } .info-row { grid-template-columns: 1fr; } .two-col { grid-template-columns: 1fr; } }
     </style>
 </head>
@@ -418,9 +494,40 @@
                 </div>
                 <button class="btn btn-mango btn-sm" onclick="openNewAsset()">+ New Asset</button>
             </div>
-            <div class="card" style="padding:0; overflow:hidden;">
-                <div id="assets-content"><div class="empty"><div class="empty-icon">⏳</div>Loading...</div></div>
+
+            <!-- filter bar -->
+            <div class="card" style="padding:14px 16px; margin-bottom:12px;">
+                <div style="display:flex; gap:8px; flex-wrap:wrap; align-items:center;">
+                    <input type="text" id="a-search" placeholder="Search assets..." oninput="renderAssets()" style="flex:1; min-width:160px; height:34px;" />
+                    <select id="a-zone" onchange="renderAssets()" style="height:34px; min-width:160px;">
+                        <option value="">All Zones</option>
+                        <option value="Upper School">Upper School</option>
+                        <option value="Lower School">Lower School</option>
+                        <option value="Second Floor">Second Floor</option>
+                        <option value="Science Wing">Science Wing</option>
+                        <option value="World Language">World Language</option>
+                        <option value="Commons">Commons / Shared</option>
+                        <option value="Other">Other</option>
+                    </select>
+                    <select id="a-category" onchange="renderAssets()" style="height:34px; min-width:130px;">
+                        <option value="">All Categories</option>
+                        <option value="Projector">Projector</option>
+                        <option value="Display">Display / TV</option>
+                        <option value="Apple TV">Apple TV</option>
+                        <option value="Network">Network</option>
+                        <option value="Server">Server</option>
+                        <option value="Printer">Printer</option>
+                        <option value="Other">Other</option>
+                    </select>
+                    <div style="display:flex; border:1.5px solid var(--border); border-radius:5px; overflow:hidden; flex-shrink:0;">
+                        <button id="a-toggle-all" class="asset-toggle active" onclick="setAssetView('all')">All</button>
+                        <button id="a-toggle-attention" class="asset-toggle" onclick="setAssetView('attention')">⚠ Needs Attention</button>
+                    </div>
+                    <span id="a-count" style="font-size:11px; color:var(--text-muted); font-family:var(--mono); white-space:nowrap;"></span>
+                </div>
             </div>
+
+            <div id="assets-content"><div class="empty"><div class="empty-icon">⏳</div>Loading...</div></div>
         </div>
 
         <!-- CONTRACTS -->
@@ -778,31 +885,154 @@ function renderHistory() {
 
 // ── ASSETS ────────────────────────────────────────────────────────────────────
 
+let assetsCache = [];
+let assetViewMode = 'all'; // 'all' | 'attention'
+
+const ZONE_ORDER = ['Upper School','Lower School','Second Floor','Science Wing','World Language','Commons','Other'];
+
+function getZone(location) {
+    if (!location) return 'Other';
+    const l = location.toLowerCase();
+    if (l.includes('upper school')) return 'Upper School';
+    if (l.includes('lower school')) return 'Lower School';
+    if (l.includes('second floor')) return 'Second Floor';
+    if (l.includes('science wing') || l.includes('science')) return 'Science Wing';
+    if (l.includes('world language')) return 'World Language';
+    if (l.includes('commons') || l.includes('town square') || l.includes('dining') ||
+        l.includes('gym') || l.includes('library') || l.includes('meeting house') ||
+        l.includes('idea lab') || l.includes('dwc') || l.includes('shlopak') ||
+        l.includes('computer lab') || l.includes('conference')) return 'Commons';
+    return 'Other';
+}
+
+function assetStatus(a) {
+    const today = new Date();
+    if (!a.next_service_date) return { label: 'No schedule', cls: 'none', days: null };
+    const days = Math.ceil((new Date(a.next_service_date) - today) / 86400000);
+    if (days < 0) return { label: `Overdue ${Math.abs(days)}d`, cls: 'overdue', days };
+    if (days <= 90) return { label: `Due in ${days}d`, cls: 'soon', days };
+    return { label: 'OK', cls: 'ok', days };
+}
+
+function needsAttention(a) {
+    const s = assetStatus(a);
+    return s.cls === 'overdue' || s.cls === 'soon' || s.cls === 'none';
+}
+
+function setAssetView(mode) {
+    assetViewMode = mode;
+    document.getElementById('a-toggle-all').classList.toggle('active', mode === 'all');
+    document.getElementById('a-toggle-attention').classList.toggle('active', mode === 'attention');
+    renderAssets();
+}
+
 async function loadAssets() {
     const el = document.getElementById('assets-content');
-    const { data, error } = await sb.from('it_assets').select('*').order('name');
+    const { data, error } = await sb.from('it_assets').select('*').order('location').order('name');
     if (error) { el.innerHTML = errHtml(error.message); return; }
-    if (!data?.length) { el.innerHTML = `<div class="empty"><div class="empty-icon">📦</div>No assets yet. Add your first asset to start tracking maintenance.</div>`; return; }
-    const today = new Date();
-    el.innerHTML = `<div class="table-wrap"><table>
-        <thead><tr><th>Asset</th><th>Category</th><th>Location</th><th>Last Serviced</th><th>Next Service</th><th>Status</th><th></th></tr></thead>
-        <tbody>${data.map(a => {
-            const days = a.next_service_date ? Math.ceil((new Date(a.next_service_date)-today)/86400000) : null;
-            const statusHtml = days===null ? '<span style="color:var(--text-muted);font-size:11px;">No schedule</span>'
-                : days<0 ? `<span class="badge" style="background:var(--red-light);color:var(--red);">Overdue ${Math.abs(days)}d</span>`
-                : days<30 ? `<span class="badge" style="background:var(--mango-light);color:#92640e;">Due in ${days}d</span>`
-                : `<span class="badge badge-general">OK</span>`;
-            return `<tr>
-                <td><div class="td-main">${esc(a.name)}</div>${a.notes?`<div class="td-sub">${esc(a.notes.substring(0,50))}</div>`:''}</td>
-                <td>${esc(a.category||'—')}</td>
-                <td>${esc(a.location||'—')}</td>
-                <td class="mono">${a.last_serviced?fdate(a.last_serviced):'—'}</td>
-                <td class="mono">${a.next_service_date?fdate(a.next_service_date):'—'}</td>
-                <td>${statusHtml}</td>
-                <td><button class="btn btn-ghost btn-sm" onclick="openEditAsset('${a.id}')">Edit</button></td>
-            </tr>`;
-        }).join('')}</tbody>
-    </table></div>`;
+    assetsCache = data || [];
+    renderAssets();
+}
+
+function renderAssets() {
+    const el = document.getElementById('assets-content');
+    const q = (document.getElementById('a-search')?.value || '').toLowerCase();
+    const zoneFilter = document.getElementById('a-zone')?.value || '';
+    const catFilter = document.getElementById('a-category')?.value || '';
+
+    let assets = assetsCache;
+
+    // filters
+    if (q) assets = assets.filter(a =>
+        a.name?.toLowerCase().includes(q) ||
+        a.location?.toLowerCase().includes(q) ||
+        a.notes?.toLowerCase().includes(q)
+    );
+    if (zoneFilter) assets = assets.filter(a => getZone(a.location) === zoneFilter);
+    if (catFilter) assets = assets.filter(a => a.category === catFilter);
+    if (assetViewMode === 'attention') assets = assets.filter(needsAttention);
+
+    document.getElementById('a-count').textContent = `${assets.length} asset${assets.length !== 1 ? 's' : ''}`;
+
+    if (!assetsCache.length) {
+        el.innerHTML = `<div class="empty"><div class="empty-icon">📦</div>No assets yet. Add your first asset.</div>`;
+        return;
+    }
+
+    if (!assets.length) {
+        el.innerHTML = `<div class="empty"><div class="empty-icon">🔍</div>No assets match your filters.</div>`;
+        return;
+    }
+
+    // group by zone
+    const groups = {};
+    ZONE_ORDER.forEach(z => groups[z] = []);
+    assets.forEach(a => { const z = getZone(a.location); if (!groups[z]) groups[z] = []; groups[z].push(a); });
+
+    let html = '';
+    ZONE_ORDER.forEach(zone => {
+        const list = groups[zone];
+        if (!list.length) return;
+
+        const overdue = list.filter(a => assetStatus(a).cls === 'overdue').length;
+        const soon = list.filter(a => assetStatus(a).cls === 'soon').length;
+        const alertDot = overdue ? `<span class="zone-alert-dot"></span>` : soon ? `<span class="zone-alert-dot warn"></span>` : '';
+        const alertCount = overdue ? `<span class="badge" style="background:var(--red-light);color:var(--red);margin-left:4px;">${overdue} overdue</span>`
+            : soon ? `<span class="badge" style="background:var(--mango-light);color:#92640e;margin-left:4px;">${soon} due soon</span>` : '';
+
+        const groupId = 'zone-' + zone.replace(/\s+/g, '-').toLowerCase();
+
+        html += `<div class="zone-group">
+            <div class="zone-header" onclick="toggleZone('${groupId}')">
+                <div class="zone-header-left">
+                    ${alertDot}
+                    <span class="zone-name">${zone}</span>
+                    <span class="zone-count">${list.length}</span>
+                    ${alertCount}
+                </div>
+                <span class="zone-chevron" id="${groupId}-chev">▼</span>
+            </div>
+            <div class="zone-body" id="${groupId}">
+                <table style="width:100%; border-collapse:collapse;">
+                    <thead><tr>
+                        <th style="padding:8px 12px; text-align:left; font-size:10px; font-weight:700; text-transform:uppercase; letter-spacing:.07em; color:var(--text-muted); border-bottom:1px solid var(--border); background:var(--bg-subtle);">Asset</th>
+                        <th style="padding:8px 12px; text-align:left; font-size:10px; font-weight:700; text-transform:uppercase; letter-spacing:.07em; color:var(--text-muted); border-bottom:1px solid var(--border); background:var(--bg-subtle);">Location</th>
+                        <th style="padding:8px 12px; text-align:left; font-size:10px; font-weight:700; text-transform:uppercase; letter-spacing:.07em; color:var(--text-muted); border-bottom:1px solid var(--border); background:var(--bg-subtle);">Last Serviced</th>
+                        <th style="padding:8px 12px; text-align:left; font-size:10px; font-weight:700; text-transform:uppercase; letter-spacing:.07em; color:var(--text-muted); border-bottom:1px solid var(--border); background:var(--bg-subtle);">Next Service</th>
+                        <th style="padding:8px 12px; text-align:left; font-size:10px; font-weight:700; text-transform:uppercase; letter-spacing:.07em; color:var(--text-muted); border-bottom:1px solid var(--border); background:var(--bg-subtle);">Status</th>
+                        <th style="padding:8px 12px; background:var(--bg-subtle); border-bottom:1px solid var(--border);"></th>
+                    </tr></thead>
+                    <tbody>${list.map(a => {
+                        const s = assetStatus(a);
+                        const statusBadge = s.cls === 'overdue' ? `<span class="badge" style="background:var(--red-light);color:var(--red);">${s.label}</span>`
+                            : s.cls === 'soon' ? `<span class="badge" style="background:var(--mango-light);color:#92640e;">${s.label}</span>`
+                            : s.cls === 'ok' ? `<span class="badge badge-general">OK</span>`
+                            : `<span style="font-size:11px;color:var(--text-muted);">No schedule</span>`;
+                        return `<tr>
+                            <td style="padding:10px 12px; border-bottom:1px solid var(--border);">
+                                <div style="font-weight:600; font-size:12px; color:var(--emerald);">${esc(a.name)}</div>
+                                ${a.notes ? `<div style="font-size:11px;color:var(--text-muted);">${esc(a.notes.substring(0,50))}</div>` : ''}
+                            </td>
+                            <td style="padding:10px 12px; border-bottom:1px solid var(--border); font-size:12px;">${esc(a.location||'—')}</td>
+                            <td style="padding:10px 12px; border-bottom:1px solid var(--border);" class="mono">${a.last_serviced ? fdate(a.last_serviced) : '—'}</td>
+                            <td style="padding:10px 12px; border-bottom:1px solid var(--border);" class="mono">${a.next_service_date ? fdate(a.next_service_date) : '—'}</td>
+                            <td style="padding:10px 12px; border-bottom:1px solid var(--border);">${statusBadge}</td>
+                            <td style="padding:10px 12px; border-bottom:1px solid var(--border);"><button class="btn btn-ghost btn-sm" onclick="openEditAsset('${a.id}')">Edit</button></td>
+                        </tr>`;
+                    }).join('')}</tbody>
+                </table>
+            </div>
+        </div>`;
+    });
+
+    el.innerHTML = html;
+}
+
+function toggleZone(groupId) {
+    const body = document.getElementById(groupId);
+    const chev = document.getElementById(groupId + '-chev');
+    const collapsed = body.classList.toggle('collapsed');
+    chev.style.transform = collapsed ? 'rotate(-90deg)' : '';
 }
 
 async function loadAssetOptions() {

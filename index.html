@@ -323,6 +323,7 @@
             <button class="nav-btn" data-view="history">History</button>
             <button class="nav-btn" data-view="assets">Assets</button>
             <button class="nav-btn" data-view="contracts">Contracts</button>
+            <button class="nav-btn" data-view="todos">To-Do</button>
             <button class="nav-btn signout" onclick="signOut()">Sign Out</button>
         </div>
         <button class="hamburger" id="hamburger-btn" onclick="toggleMobileMenu()" aria-label="Menu">
@@ -337,6 +338,7 @@
         <button class="mobile-nav-btn" data-view="history" onclick="mobileNav('history')">📋 History</button>
         <button class="mobile-nav-btn" data-view="assets" onclick="mobileNav('assets')">📦 Assets</button>
         <button class="mobile-nav-btn" data-view="contracts" onclick="mobileNav('contracts')">🤝 Contracts</button>
+        <button class="mobile-nav-btn" data-view="todos" onclick="mobileNav('todos')">✅ To-Do</button>
         <button class="mobile-nav-btn signout" onclick="signOut()">→ Sign Out</button>
     </div>
 
@@ -630,6 +632,30 @@
             </div>
         </div>
 
+        <!-- TO-DO -->
+        <div id="view-todos" class="view">
+            <div class="page-header">
+                <div>
+                    <div class="page-title">To-Do</div>
+                    <div class="page-sub">Shared task list for David &amp; Evan</div>
+                </div>
+            </div>
+            <div class="card" style="max-width:640px;">
+                <div style="display:flex;gap:8px;margin-bottom:20px;">
+                    <input type="text" id="todo-input" placeholder="Add a new task..." style="flex:1;padding:9px 12px;border:1px solid var(--border);border-radius:6px;font-size:13px;font-family:var(--sans);outline:none;" onkeydown="if(event.key==='Enter')addTodo()" />
+                    <button onclick="addTodo()" style="background:var(--brookwood);color:#fff;border:none;padding:9px 18px;border-radius:6px;font-size:13px;font-weight:600;font-family:var(--sans);cursor:pointer;white-space:nowrap;">+ Add</button>
+                </div>
+                <div id="todo-list"><div class="empty"><div class="empty-icon">⏳</div>Loading...</div></div>
+                <div id="todo-done-section" class="hidden" style="margin-top:20px;padding-top:16px;border-top:1px solid var(--border);">
+                    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;">
+                        <span style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:var(--text-muted);">Completed</span>
+                        <button onclick="clearDone()" style="background:none;border:none;font-size:11px;color:var(--text-muted);cursor:pointer;font-family:var(--sans);">Clear all</button>
+                    </div>
+                    <div id="todo-done-list"></div>
+                </div>
+            </div>
+        </div>
+
     </div>
 </div>
 
@@ -895,6 +921,7 @@ function showView(name) {
     if (name === 'history') loadHistory();
     if (name === 'assets') loadAssets();
     if (name === 'contracts') { loadSecureWon(); loadThreesCompany(); }
+    if (name === 'todos') loadTodos();
 }
 
 document.querySelectorAll('.nav-btn[data-view]').forEach(btn => {
@@ -1413,6 +1440,93 @@ function renderContractTable(rows) {
             <td><button class="btn btn-ghost btn-sm" onclick="openEntry('${e.id}')">View</button></td>
         </tr>`).join('')}</tbody>
     </table></div>`;
+}
+
+// ── TO-DO ──────────────────────────────────────────────────────────────────────
+
+async function loadTodos() {
+    const list = document.getElementById('todo-list');
+    const doneList = document.getElementById('todo-done-list');
+    const doneSection = document.getElementById('todo-done-section');
+    list.innerHTML = '<div class="empty"><div class="empty-icon">⏳</div>Loading...</div>';
+
+    const { data, error } = await sb.from('todos').select('*').order('created_at', { ascending: true });
+    if (error) { list.innerHTML = '<div class="empty"><div class="empty-icon">⚠️</div>Failed to load.</div>'; return; }
+
+    const active = (data || []).filter(t => !t.done);
+    const done   = (data || []).filter(t => t.done);
+
+    list.innerHTML = active.length ? '' : '<div class="empty" style="padding:24px 0;"><div class="empty-icon">✓</div>Nothing to do — you\'re all caught up.</div>';
+    active.forEach(t => list.appendChild(makeTodoRow(t)));
+
+    if (done.length) {
+        doneSection.classList.remove('hidden');
+        doneList.innerHTML = '';
+        done.forEach(t => doneList.appendChild(makeTodoRow(t)));
+    } else {
+        doneSection.classList.add('hidden');
+    }
+}
+
+function makeTodoRow(todo) {
+    const row = document.createElement('div');
+    row.style.cssText = 'display:flex;align-items:center;gap:10px;padding:9px 4px;border-bottom:1px solid var(--border);';
+    row.dataset.id = todo.id;
+
+    const check = document.createElement('input');
+    check.type = 'checkbox';
+    check.checked = todo.done;
+    check.style.cssText = 'width:16px;height:16px;accent-color:var(--brookwood);cursor:pointer;flex-shrink:0;';
+    check.addEventListener('change', () => toggleTodo(todo.id, check.checked));
+
+    const label = document.createElement('span');
+    label.textContent = todo.text;
+    label.style.cssText = `flex:1;font-size:13px;font-family:var(--sans);color:var(--text);${todo.done ? 'text-decoration:line-through;color:var(--text-muted);' : ''}`;
+
+    const meta = document.createElement('span');
+    const who = todo.added_by ? todo.added_by.split('@')[0] : '';
+    meta.textContent = who;
+    meta.style.cssText = 'font-size:10px;color:var(--text-muted);font-family:var(--mono,monospace);flex-shrink:0;';
+
+    const del = document.createElement('button');
+    del.textContent = '×';
+    del.style.cssText = 'background:none;border:none;color:var(--text-muted);font-size:16px;cursor:pointer;padding:0 4px;line-height:1;flex-shrink:0;';
+    del.onmouseover = () => del.style.color = '#e05555';
+    del.onmouseout  = () => del.style.color = 'var(--text-muted)';
+    del.addEventListener('click', () => deleteTodo(todo.id));
+
+    row.appendChild(check);
+    row.appendChild(label);
+    row.appendChild(meta);
+    row.appendChild(del);
+    return row;
+}
+
+async function addTodo() {
+    const input = document.getElementById('todo-input');
+    const text = input.value.trim();
+    if (!text) return;
+    input.value = '';
+    const { data: { session } } = await sb.auth.getSession();
+    const email = session?.user?.email || '';
+    const { error } = await sb.from('todos').insert({ text, added_by: email, done: false });
+    if (!error) loadTodos();
+}
+
+async function toggleTodo(id, done) {
+    await sb.from('todos').update({ done }).eq('id', id);
+    loadTodos();
+}
+
+async function deleteTodo(id) {
+    await sb.from('todos').delete().eq('id', id);
+    loadTodos();
+}
+
+async function clearDone() {
+    if (!confirm('Remove all completed tasks?')) return;
+    await sb.from('todos').delete().eq('done', true);
+    loadTodos();
 }
 
 // ── ENTRY DETAIL ──────────────────────────────────────────────────────────────

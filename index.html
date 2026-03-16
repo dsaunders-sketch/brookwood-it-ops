@@ -358,8 +358,14 @@
             </div>
             <div class="two-col">
                 <div class="card">
-                    <div class="card-title">Upcoming Maintenance</div>
-                    <div id="dash-upcoming"><div class="empty"><div class="empty-icon">⏳</div>Loading...</div></div>
+                    <div class="card-title" style="display:flex;justify-content:space-between;align-items:center;">
+                        <span>To-Do</span>
+                        <div style="display:flex;gap:6px;">
+                            <input type="text" id="dash-todo-input" placeholder="Add task..." onkeydown="if(event.key==='Enter')dashAddTodo()" style="padding:5px 9px;border:1px solid var(--border);border-radius:5px;font-size:12px;font-family:var(--sans);outline:none;width:160px;" />
+                            <button onclick="dashAddTodo()" style="background:var(--brookwood);color:#fff;border:none;padding:5px 10px;border-radius:5px;font-size:12px;font-weight:600;font-family:var(--sans);cursor:pointer;">+</button>
+                        </div>
+                    </div>
+                    <div id="dash-todos"><div class="empty"><div class="empty-icon">⏳</div>Loading...</div></div>
                 </div>
                 <div class="card">
                     <div class="card-title">Recent Entries</div>
@@ -1064,7 +1070,7 @@ async function submitEntry() {
 
 async function loadDashboard() {
     loadContractCards();
-    loadUpcoming();
+    loadDashTodos();
     loadRecent();
 }
 
@@ -1527,6 +1533,58 @@ async function clearDone() {
     if (!confirm('Remove all completed tasks?')) return;
     await sb.from('todos').delete().eq('done', true);
     loadTodos();
+    loadDashTodos();
+}
+
+async function loadDashTodos() {
+    const el = document.getElementById('dash-todos');
+    if (!el) return;
+    const { data, error } = await sb.from('todos').select('*').order('created_at', { ascending: true });
+    if (error) { el.innerHTML = '<div class="empty"><div class="empty-icon">⚠️</div>Failed to load.</div>'; return; }
+
+    const active = (data || []).filter(t => !t.done);
+    const done   = (data || []).filter(t => t.done);
+    const all = [...active, ...done];
+
+    if (!all.length) {
+        el.innerHTML = '<div class="empty" style="padding:16px 0;"><div class="empty-icon">✓</div>All caught up!</div>';
+        return;
+    }
+
+    el.innerHTML = '';
+    all.forEach(t => {
+        const row = document.createElement('div');
+        row.style.cssText = 'display:flex;align-items:center;gap:8px;padding:7px 2px;border-bottom:1px solid var(--border);';
+        const check = document.createElement('input');
+        check.type = 'checkbox';
+        check.checked = t.done;
+        check.style.cssText = 'width:14px;height:14px;accent-color:var(--brookwood);cursor:pointer;flex-shrink:0;';
+        check.addEventListener('change', async () => {
+            await sb.from('todos').update({ done: check.checked }).eq('id', t.id);
+            loadDashTodos();
+            if (document.getElementById('todo-list')) loadTodos();
+        });
+        const label = document.createElement('span');
+        label.textContent = t.text;
+        label.style.cssText = `flex:1;font-size:12px;font-family:var(--sans);${t.done ? 'text-decoration:line-through;color:var(--text-muted);' : 'color:var(--text);'}`;
+        const who = document.createElement('span');
+        who.textContent = t.added_by ? t.added_by.split('@')[0] : '';
+        who.style.cssText = 'font-size:10px;color:var(--text-muted);font-family:var(--mono,monospace);flex-shrink:0;';
+        row.appendChild(check); row.appendChild(label); row.appendChild(who);
+        el.appendChild(row);
+    });
+}
+
+async function dashAddTodo() {
+    const input = document.getElementById('dash-todo-input');
+    const text = input.value.trim();
+    if (!text) return;
+    input.value = '';
+    const { data: { session } } = await sb.auth.getSession();
+    const email = session?.user?.email || '';
+    await sb.from('todos').insert({ text, added_by: email, done: false });
+    loadDashTodos();
+    if (document.getElementById('todo-list')) loadTodos();
 }
 
 // ── ENTRY DETAIL ──────────────────────────────────────────────────────────────
